@@ -29,6 +29,7 @@
     "@nestjs/platform-socket.io": "^11.1.23",
     "@nestjs/websockets": "^11.1.23",
     "@prisma/client": "^6.19.3",
+    "prisma": "^6.19.3",
     "bcrypt": "^6.0.0",
     "cache-manager": "^7.2.8",
     "cache-manager-redis-yet": "^5.1.5",
