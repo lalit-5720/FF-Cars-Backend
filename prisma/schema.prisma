@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -59,8 +60,8 @@ model Booking {
   car           Car           @relation(fields: [carId], references: [id], onDelete: Cascade)
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([carId], map: "bookings_car_id_fkey")
-  @@index([userId], map: "bookings_user_id_fkey")
+  @@index([carId], map: "bookings_car_id_idx")
+  @@index([userId], map: "bookings_user_id_idx")
   @@map("bookings")
 }
 
@@ -72,7 +73,7 @@ model Wishlist {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, carId])
-  @@index([carId], map: "wishlists_car_id_fkey")
+  @@index([carId], map: "wishlists_car_id_idx")
   @@map("wishlists")
 }
 
@@ -84,7 +85,7 @@ model Notification {
   createdAt  DateTime @default(now()) @map("created_at")
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId], map: "notifications_user_id_fkey")
+  @@index([userId], map: "notifications_user_id_idx")
   @@map("notifications")
 }
 
