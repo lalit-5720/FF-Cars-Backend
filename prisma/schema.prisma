@@ -1,10 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password      String
+  name          String
+  role          Role           @default(CUSTOMER)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  bookings      Booking[]
+  notifications Notification[]
+  wishlists     Wishlist[]
+
+  @@map("users")
+}
+
+model Car {
+  id           String     @id @default(uuid())
+  brand        String
+  model        String
+  variant      String
+  year         Int
+  fuelType     String     @map("fuel_type")
+  transmission String
+  kmDriven     Int        @map("km_driven")
+  ownership    String
+  price        Float
+  description  String     @db.Text
+  status       CarStatus  @default(AVAILABLE)
+  thumbnail    String
+  images       Json
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  bookings     Booking[]
+  wishlists    Wishlist[]
+
+  @@index([brand, model])
+  @@index([price])
+  @@map("cars")
+}
+
+model Booking {
+  id            String        @id @default(uuid())
+  userId        String        @map("user_id")
+  carId         String        @map("car_id")
+  bookingStatus BookingStatus @default(PENDING) @map("booking_status")
+  paymentStatus PaymentStatus @default(PENDING) @map("payment_status")
+  bookingAmount Float         @map("booking_amount")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  car           Car           @relation(fields: [carId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([carId], map: "bookings_car_id_fkey")
+  @@index([userId], map: "bookings_user_id_fkey")
+  @@map("bookings")
+}
+
+model Wishlist {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+  carId  String @map("car_id")
+  car    Car    @relation(fields: [carId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, carId])
+  @@index([carId], map: "wishlists_car_id_fkey")
+  @@map("wishlists")
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  message    String   @db.Text
+  readStatus Boolean  @default(false) @map("read_status")
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "notifications_user_id_fkey")
+  @@map("notifications")
 }
 
 enum Role {
@@ -29,84 +110,4 @@ enum PaymentStatus {
   PAID
   FAILED
   REFUNDED
-}
-
-model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  password      String
-  name          String
-  role          Role           @default(CUSTOMER)
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-  bookings      Booking[]
-  wishlists     Wishlist[]
-  notifications Notification[]
-
-  @@map("users")
-}
-
-model Car {
-  id           String     @id @default(uuid())
-  brand        String
-  model        String
-  variant      String
-  year         Int
-  fuelType     String     @map("fuel_type")
-  transmission String
-  kmDriven     Int        @map("km_driven")
-  ownership    String
-  price        Float
-  description  String     @db.Text
-  status       CarStatus  @default(AVAILABLE)
-  thumbnail    String
-  images       Json       // JSON Array of Image URLs from Cloudinary or local paths
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
-  bookings     Booking[]
-  wishlists    Wishlist[]
-
-  @@index([brand, model])
-  @@index([price])
-  @@map("cars")
-}
-
-model Booking {
-  id            String        @id @default(uuid())
-  userId        String        @map("user_id")
-  carId         String        @map("car_id")
-  bookingStatus BookingStatus @default(PENDING) @map("booking_status")
-  paymentStatus PaymentStatus @default(PENDING) @map("payment_status")
-  bookingAmount Float         @map("booking_amount")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  car  Car  @relation(fields: [carId], references: [id], onDelete: Cascade)
-
-  @@map("bookings")
-}
-
-model Wishlist {
-  id     String @id @default(uuid())
-  userId String @map("user_id")
-  carId  String @map("car_id")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  car  Car  @relation(fields: [carId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, carId])
-  @@map("wishlists")
-}
-
-model Notification {
-  id         String   @id @default(uuid())
-  userId     String   @map("user_id")
-  message    String   @db.Text
-  readStatus Boolean  @default(false) @map("read_status")
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("notifications")
 }
