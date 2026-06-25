@@ -55,8 +55,8 @@ let BookingsService = class BookingsService {
         }
         return result.booking;
     }
-    async findAll(userId, role) {
-        if (role === client_1.Role.ADMIN) {
+    async findAll(userId, role, allBookings = false) {
+        if (allBookings && role === client_1.Role.ADMIN) {
             return this.prisma.booking.findMany({
                 include: {
                     user: {

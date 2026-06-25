@@ -6,9 +6,11 @@ import {
   Param,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { FindBookingsQueryDto } from './dto/find-bookings-query.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -25,8 +27,8 @@ export class BookingsController {
   }
 
   @Get()
-  findAll(@Req() req: any) {
-    return this.bookingsService.findAll(req.user.id, req.user.role);
+  findAll(@Req() req: any, @Query() query: FindBookingsQueryDto) {
+    return this.bookingsService.findAll(req.user.id, req.user.role, query.all === 'true');
   }
 
   @Get(':id')

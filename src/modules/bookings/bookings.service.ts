@@ -70,8 +70,8 @@ export class BookingsService {
     return result.booking;
   }
 
-  async findAll(userId: string, role: Role): Promise<any[]> {
-    if (role === Role.ADMIN) {
+  async findAll(userId: string, role: Role, allBookings = false): Promise<any[]> {
+    if (allBookings && role === Role.ADMIN) {
       return this.prisma.booking.findMany({
         include: {
           user: {

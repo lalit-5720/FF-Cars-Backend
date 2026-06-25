@@ -1,5 +1,6 @@
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { FindBookingsQueryDto } from './dto/find-bookings-query.dto';
 export declare class BookingsController {
     private readonly bookingsService;
     constructor(bookingsService: BookingsService);
@@ -13,7 +14,7 @@ export declare class BookingsController {
         carId: string;
         userId: string;
     }>;
-    findAll(req: any): Promise<any[]>;
+    findAll(req: any, query: FindBookingsQueryDto): Promise<any[]>;
     findOne(req: any, id: string): Promise<any>;
     cancel(req: any, id: string): Promise<{
         id: string;

@@ -16,6 +16,7 @@ exports.BookingsController = void 0;
 const common_1 = require("@nestjs/common");
 const bookings_service_1 = require("./bookings.service");
 const create_booking_dto_1 = require("./dto/create-booking.dto");
+const find_bookings_query_dto_1 = require("./dto/find-bookings-query.dto");
 const jwt_auth_guard_1 = require("../../common/guards/jwt-auth.guard");
 const roles_guard_1 = require("../../common/guards/roles.guard");
 const roles_decorator_1 = require("../../common/decorators/roles.decorator");
@@ -28,8 +29,8 @@ let BookingsController = class BookingsController {
     create(req, createBookingDto) {
         return this.bookingsService.createBooking(req.user.id, createBookingDto);
     }
-    findAll(req) {
-        return this.bookingsService.findAll(req.user.id, req.user.role);
+    findAll(req, query) {
+        return this.bookingsService.findAll(req.user.id, req.user.role, query.all === 'true');
     }
     findOne(req, id) {
         return this.bookingsService.findOne(id, req.user.id, req.user.role);
@@ -53,8 +54,9 @@ __decorate([
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, find_bookings_query_dto_1.FindBookingsQueryDto]),
     __metadata("design:returntype", void 0)
 ], BookingsController.prototype, "findAll", null);
 __decorate([
