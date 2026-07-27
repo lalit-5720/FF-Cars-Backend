@@ -11,13 +11,16 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const prisma_module_1 = require("./prisma/prisma.module");
 const auth_module_1 = require("./modules/auth/auth.module");
-const users_module_1 = require("./modules/users/users.module");
-const cars_module_1 = require("./modules/cars/cars.module");
-const bookings_module_1 = require("./modules/bookings/bookings.module");
-const notifications_module_1 = require("./modules/notifications/notifications.module");
-const wishlist_module_1 = require("./modules/wishlist/wishlist.module");
+const branches_module_1 = require("./modules/branches/branches.module");
+const vehicles_module_1 = require("./modules/vehicles/vehicles.module");
+const customers_module_1 = require("./modules/customers/customers.module");
+const employees_module_1 = require("./modules/employees/employees.module");
+const leads_module_1 = require("./modules/leads/leads.module");
+const test_drives_module_1 = require("./modules/test-drives/test-drives.module");
+const sales_module_1 = require("./modules/sales/sales.module");
+const payments_module_1 = require("./modules/payments/payments.module");
+const deliveries_module_1 = require("./modules/deliveries/deliveries.module");
 const upload_module_1 = require("./modules/upload/upload.module");
-const admin_module_1 = require("./modules/admin/admin.module");
 const cache_module_1 = require("./common/services/cache.module");
 let AppModule = class AppModule {
 };
@@ -32,13 +35,16 @@ exports.AppModule = AppModule = __decorate([
             prisma_module_1.PrismaModule,
             cache_module_1.CacheModule,
             auth_module_1.AuthModule,
-            users_module_1.UsersModule,
-            cars_module_1.CarsModule,
-            bookings_module_1.BookingsModule,
-            notifications_module_1.NotificationsModule,
-            wishlist_module_1.WishlistModule,
+            branches_module_1.BranchesModule,
+            vehicles_module_1.VehiclesModule,
+            customers_module_1.CustomersModule,
+            employees_module_1.EmployeesModule,
+            leads_module_1.LeadsModule,
+            test_drives_module_1.TestDrivesModule,
+            sales_module_1.SalesModule,
+            payments_module_1.PaymentsModule,
+            deliveries_module_1.DeliveriesModule,
             upload_module_1.UploadModule,
-            admin_module_1.AdminModule,
         ],
     })
 ], AppModule);

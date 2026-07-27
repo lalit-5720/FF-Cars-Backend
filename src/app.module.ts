@@ -2,13 +2,16 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { UsersModule } from './modules/users/users.module';
-import { CarsModule } from './modules/cars/cars.module';
-import { BookingsModule } from './modules/bookings/bookings.module';
-import { NotificationsModule } from './modules/notifications/notifications.module';
-import { WishlistModule } from './modules/wishlist/wishlist.module';
+import { BranchesModule } from './modules/branches/branches.module';
+import { VehiclesModule } from './modules/vehicles/vehicles.module';
+import { CustomersModule } from './modules/customers/customers.module';
+import { EmployeesModule } from './modules/employees/employees.module';
+import { LeadsModule } from './modules/leads/leads.module';
+import { TestDrivesModule } from './modules/test-drives/test-drives.module';
+import { SalesModule } from './modules/sales/sales.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { DeliveriesModule } from './modules/deliveries/deliveries.module';
 import { UploadModule } from './modules/upload/upload.module';
-import { AdminModule } from './modules/admin/admin.module';
 import { CacheModule } from './common/services/cache.module';
 
 @Module({
@@ -23,15 +26,18 @@ import { CacheModule } from './common/services/cache.module';
     PrismaModule,
     CacheModule,
 
-    // Domain Modules
+    // Domain Modules matching 9-Table Schema
     AuthModule,
-    UsersModule,
-    CarsModule,
-    BookingsModule,
-    NotificationsModule,
-    WishlistModule,
+    BranchesModule,
+    VehiclesModule,
+    CustomersModule,
+    EmployeesModule,
+    LeadsModule,
+    TestDrivesModule,
+    SalesModule,
+    PaymentsModule,
+    DeliveriesModule,
     UploadModule,
-    AdminModule,
   ],
 })
 export class AppModule {}

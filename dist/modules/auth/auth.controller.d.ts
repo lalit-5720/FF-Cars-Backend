@@ -8,19 +8,49 @@ export declare class AuthController {
     private jwtService;
     private configService;
     constructor(authService: AuthService, jwtService: JwtService, configService: ConfigService);
-    register(registerDto: RegisterDto): Promise<Omit<{
-        name: string;
-        id: string;
-        email: string;
-        password: string;
-        role: import("@prisma/client").$Enums.Role;
-        createdAt: Date;
-        updatedAt: Date;
-    }, "password">>;
-    login(loginDto: LoginDto): Promise<{
+    register(registerDto: RegisterDto): Promise<{
+        user: {
+            id: number;
+            name: string;
+            email: string | null;
+            role: string;
+        };
         accessToken: string;
         refreshToken: string;
-        user: Omit<import("@prisma/client").User, "password">;
+    }>;
+    login(loginDto: LoginDto): Promise<{
+        user: {
+            id: number;
+            name: string;
+            email: string;
+            role: string;
+            job_title: string;
+            branch_id: null;
+        };
+        accessToken: string;
+        refreshToken: string;
+    } | {
+        user: {
+            id: number;
+            name: string;
+            email: string | null;
+            role: string;
+            job_title: string;
+            branch_id: number;
+        };
+        accessToken: string;
+        refreshToken: string;
+    } | {
+        user: {
+            id: number;
+            name: string;
+            email: string | null;
+            role: string;
+            job_title?: undefined;
+            branch_id?: undefined;
+        };
+        accessToken: string;
+        refreshToken: string;
     }>;
     refresh(refreshToken: string): Promise<{
         accessToken: string;
