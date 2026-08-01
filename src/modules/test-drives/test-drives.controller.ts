@@ -12,8 +12,9 @@ export class TestDrivesController {
     @Query('customerId') customerId?: number,
     @Query('vehicleId') vehicleId?: number,
     @Query('branchId') branchId?: number,
+    @Query('email') email?: string,
   ) {
-    return this.testDrivesService.findAll({ status, customerId, vehicleId, branchId });
+    return this.testDrivesService.findAll({ status, customerId, vehicleId, branchId, email });
   }
 
   @Get(':id')

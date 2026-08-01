@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class EmployeesService {
@@ -55,15 +56,26 @@ export class EmployeesService {
     return employee;
   }
 
-  async create(data: Prisma.employeesCreateInput) {
-    return this.prisma.employees.create({ data });
+  async create(data: any) {
+    const rawPassword = data.password || 'password123';
+    const hashedPassword = await bcrypt.hash(rawPassword, 10);
+    return this.prisma.employees.create({
+      data: {
+        ...data,
+        password: hashedPassword,
+      },
+    });
   }
 
-  async update(id: number, data: Prisma.employeesUpdateInput) {
+  async update(id: number, data: any) {
     await this.findOne(id);
+    const updateData: any = { ...data };
+    if (updateData.password) {
+      updateData.password = await bcrypt.hash(updateData.password, 10);
+    }
     return this.prisma.employees.update({
       where: { employee_id: id },
-      data,
+      data: updateData,
     });
   }
 

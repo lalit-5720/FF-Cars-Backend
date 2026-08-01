@@ -21,6 +21,7 @@ const sales_module_1 = require("./modules/sales/sales.module");
 const payments_module_1 = require("./modules/payments/payments.module");
 const deliveries_module_1 = require("./modules/deliveries/deliveries.module");
 const upload_module_1 = require("./modules/upload/upload.module");
+const reviews_module_1 = require("./modules/reviews/reviews.module");
 const cache_module_1 = require("./common/services/cache.module");
 let AppModule = class AppModule {
 };
@@ -45,6 +46,7 @@ exports.AppModule = AppModule = __decorate([
             payments_module_1.PaymentsModule,
             deliveries_module_1.DeliveriesModule,
             upload_module_1.UploadModule,
+            reviews_module_1.ReviewsModule,
         ],
     })
 ], AppModule);

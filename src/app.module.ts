@@ -12,6 +12,7 @@ import { SalesModule } from './modules/sales/sales.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { DeliveriesModule } from './modules/deliveries/deliveries.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 import { CacheModule } from './common/services/cache.module';
 
 @Module({
@@ -38,6 +39,7 @@ import { CacheModule } from './common/services/cache.module';
     PaymentsModule,
     DeliveriesModule,
     UploadModule,
+    ReviewsModule,
   ],
 })
 export class AppModule {}

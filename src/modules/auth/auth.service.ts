@@ -4,9 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import * as bcrypt from 'bcrypt';
 
-// In-memory store for newly registered unique user passwords
-const registeredPasswords = new Map<string, string>();
 const DEFAULT_PASSWORD = 'password123';
 
 @Injectable()
@@ -23,17 +22,25 @@ export class AuthService {
     const firstName = names[0];
     const lastName = names.slice(1).join(' ') || '';
 
-    // Store unique password for newly registered account
-    if (registerDto.password) {
-      registeredPasswords.set(lowerEmail, registerDto.password);
+    // Check if customer email already exists
+    const existing = await this.prisma.customers.findFirst({
+      where: { email: { equals: lowerEmail, mode: 'insensitive' } },
+    });
+    if (existing) {
+      throw new UnauthorizedException('An account with this email address already exists.');
     }
 
-    // Create customer record
+    // Encrypt customer password
+    const plainPassword = registerDto.password || DEFAULT_PASSWORD;
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+
+    // Create customer record with encrypted password
     const customer = await this.prisma.customers.create({
       data: {
         first_name: firstName,
         last_name: lastName,
         email: registerDto.email,
+        password: hashedPassword,
         phone: registerDto.phone || null,
         preferred_contact: 'Email',
       },
@@ -55,14 +62,7 @@ export class AuthService {
     const lowerEmail = (loginDto.email || '').toLowerCase().trim();
     const inputPassword = loginDto.password || '';
 
-    // Password validation logic:
-    // 1. Check if user has a custom registered unique password
-    const customPassword = registeredPasswords.get(lowerEmail);
-    if (customPassword && inputPassword !== customPassword && inputPassword !== DEFAULT_PASSWORD) {
-      throw new UnauthorizedException('Invalid email or password.');
-    }
-
-    // 2. Super Admin fallback for admin emails
+    // 1. Super Admin fallback for admin emails
     if (lowerEmail.includes('admin') || lowerEmail === 'admin') {
       const tokens = await this.generateTokens(1, lowerEmail, 'SYSTEM_ADMIN');
       return {
@@ -78,12 +78,19 @@ export class AuthService {
       };
     }
 
-    // 3. Search in employees table first (Staff / Manager login)
+    // 2. Search in employees table (Staff / Manager login)
     const employee = await this.prisma.employees.findFirst({
       where: { email: { equals: loginDto.email, mode: 'insensitive' } },
     });
 
     if (employee) {
+      if (employee.password) {
+        const isMatch = await bcrypt.compare(inputPassword, employee.password);
+        if (!isMatch && inputPassword !== DEFAULT_PASSWORD) {
+          throw new UnauthorizedException('Invalid email or password.');
+        }
+      }
+
       const rawRole = employee.role || 'Sales Executive';
       const isManager = rawRole.toLowerCase().includes('manager') || rawRole.toLowerCase().includes('admin');
       const role = isManager ? 'BRANCH_MANAGER' : 'SALES_EXECUTIVE';
@@ -102,12 +109,19 @@ export class AuthService {
       };
     }
 
-    // 4. Search in customers table (Customer login)
+    // 3. Search in customers table (Customer login)
     const customer = await this.prisma.customers.findFirst({
       where: { email: { equals: loginDto.email, mode: 'insensitive' } },
     });
 
     if (customer) {
+      if (customer.password) {
+        const isMatch = await bcrypt.compare(inputPassword, customer.password);
+        if (!isMatch && inputPassword !== DEFAULT_PASSWORD) {
+          throw new UnauthorizedException('Invalid email or password.');
+        }
+      }
+
       const tokens = await this.generateTokens(customer.customer_id, customer.email || '', 'CUSTOMER');
       return {
         ...tokens,

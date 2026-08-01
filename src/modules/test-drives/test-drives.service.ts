@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client';
 export class TestDrivesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(query?: { status?: string; customerId?: number; vehicleId?: number; branchId?: number }) {
+  async findAll(query?: { status?: string; customerId?: number; vehicleId?: number; branchId?: number; email?: string }) {
     const where: Prisma.test_drivesWhereInput = {};
 
     if (query?.status) where.status = query.status;
@@ -15,8 +15,16 @@ export class TestDrivesService {
     if (query?.branchId) {
       where.vehicles = { branch_id: Number(query.branchId) };
     }
+    if (query?.email) {
+      where.customers = {
+        email: {
+          equals: query.email.trim(),
+          mode: 'insensitive',
+        },
+      };
+    }
 
-    return this.prisma.test_drives.findMany({
+    const list = await this.prisma.test_drives.findMany({
       where,
       include: {
         customers: true,
@@ -24,6 +32,26 @@ export class TestDrivesService {
         employees: true,
       },
       orderBy: { test_drive_id: 'desc' },
+    });
+
+    const allSales = await this.prisma.sales.findMany({
+      select: { customer_id: true, vehicle_id: true, payment_status: true, delivery_status: true },
+    });
+
+    return list.map((td) => {
+      const matchSale = allSales.find(
+        (s) => s.customer_id === td.customer_id && s.vehicle_id === td.vehicle_id
+      );
+      const isPurchased = Boolean(matchSale);
+      const saleStatus = matchSale ? (matchSale.payment_status || 'Completed') : 'Not Purchased';
+      const testDriveStatus = td.status || 'Scheduled';
+
+      return {
+        ...td,
+        test_drive_status: testDriveStatus,
+        sale_status: saleStatus,
+        is_purchased: isPurchased,
+      };
     });
   }
 
