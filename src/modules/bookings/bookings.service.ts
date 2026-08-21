@@ -46,6 +46,14 @@ export class BookingsService {
         throw new BadRequestException('Car is already booked or unavailable');
       }
 
+      const user = await.tx.user.findUnique({
+        where:{id:userid}
+      });
+
+      if (!user) {
+        throw new NotFoundException(`User with ID ${userId} not found`);
+      }
+
       // 3. Create the booking record
       const booking = await tx.booking.create({
         data: {
