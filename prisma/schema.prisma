@@ -51,6 +51,7 @@ model Car {
 model Booking {
   id            String        @id @default(uuid())
   userId        String        @map("user_id")
+  username      String        @map("name")
   carId         String        @map("car_id")
   bookingStatus BookingStatus @default(PENDING) @map("booking_status")
   paymentStatus PaymentStatus @default(PENDING) @map("payment_status")
