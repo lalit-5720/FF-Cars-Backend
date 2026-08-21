@@ -46,8 +46,8 @@ export class BookingsService {
         throw new BadRequestException('Car is already booked or unavailable');
       }
 
-      const user = await.tx.user.findUnique({
-        where:{id:userid}
+      const user = await.tx.User.findUnique({
+        where:{id:User.id}
       });
 
       if (!user) {
