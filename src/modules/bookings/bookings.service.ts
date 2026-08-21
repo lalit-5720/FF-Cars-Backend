@@ -47,7 +47,7 @@ export class BookingsService {
       }
 
       const user = await.tx.User.findUnique({
-        where:{id:User.id}
+        where:{id:id}
       });
 
       if (!user) {
