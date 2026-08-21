@@ -50,6 +50,7 @@ export class BookingsService {
       const booking = await tx.booking.create({
         data: {
           userId,
+          username : user.name
           carId,
           bookingStatus: BookingStatus.PENDING,
           paymentStatus: PaymentStatus.PENDING,
