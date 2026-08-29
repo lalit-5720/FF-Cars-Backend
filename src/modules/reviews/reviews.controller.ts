@@ -20,6 +20,11 @@ export class ReviewsController {
     return this.reviewsService.findPublished();
   }
 
+  @Get('summary')
+  getApprovalSummary() {
+    return this.reviewsService.getApprovalSummary();
+  }
+
   @Patch(':id/publish')
   togglePublish(
     @Param('id', ParseIntPipe) id: number,

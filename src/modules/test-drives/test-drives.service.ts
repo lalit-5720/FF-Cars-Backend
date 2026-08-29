@@ -79,7 +79,7 @@ export class TestDrivesService {
 
     // If customerId is missing but guest details are provided, find or create customer
     if (!customerId && (data.email || data.phone || data.name || data.firstName)) {
-      const email = data.email || `guest_${Date.now()}@ffcars.in`;
+      const email = data.email || `guest_${Date.now()}@carrevive.in`;
       const phone = data.phone || '9876543210';
       const firstName = data.firstName || data.name || 'Guest';
       const lastName = data.lastName || 'User';

@@ -61,12 +61,15 @@ export class SalesService {
     let employeeId = Number(data.employee_id || data.employeeId || 1);
     let branchId = Number(data.branch_id || data.branchId || 1);
 
-    const price = data.final_amount || data.finalAmount || data.selling_price || data.sellingPrice || data.price || 500000;
+    const price = Number(data.final_amount || data.finalAmount || data.selling_price || data.sellingPrice || data.price || 500000);
     const rawDeliveryStatus = data.delivery_status || data.deliveryStatus || 'Pending';
     const validDeliveryStatus = (rawDeliveryStatus === 'Scheduled' || rawDeliveryStatus === 'SCHEDULED') ? 'Pending' : rawDeliveryStatus;
 
     const rawPaymentStatus = data.payment_status || data.paymentStatus || 'Paid';
     const validPaymentStatus = (rawPaymentStatus === 'Completed' || rawPaymentStatus === 'COMPLETED') ? 'Paid' : rawPaymentStatus;
+
+    const depositAmount = Number(data.deposit_amount ?? data.depositAmount ?? (data.loan_amount || data.loanAmount ? (data.downpayment ?? 0) : price));
+    const loanAmount = Number(data.loan_amount ?? data.loanAmount ?? 0);
 
     const createData: Prisma.salesUncheckedCreateInput = {
       customer_id: customerId,
@@ -75,6 +78,8 @@ export class SalesService {
       employee_id: employeeId,
       selling_price: String(data.selling_price || data.sellingPrice || price),
       final_amount: String(price),
+      deposit_amount: String(depositAmount),
+      loan_amount: String(loanAmount),
       discount: String(data.discount || 0),
       tax: String(data.tax || 0),
       payment_status: validPaymentStatus,
@@ -125,11 +130,16 @@ export class SalesService {
     const rawPaymentStatus = data.payment_status || data.paymentStatus;
     const validPaymentStatus = (rawPaymentStatus === 'Completed' || rawPaymentStatus === 'COMPLETED') ? 'Paid' : rawPaymentStatus;
 
+    const depositAmount = data.deposit_amount !== undefined || data.depositAmount !== undefined ? Number(data.deposit_amount ?? data.depositAmount ?? 0) : undefined;
+    const loanAmount = data.loan_amount !== undefined || data.loanAmount !== undefined ? Number(data.loan_amount ?? data.loanAmount ?? 0) : undefined;
+
     const updateData: Prisma.salesUncheckedUpdateInput = {
       ...(customerId ? { customer_id: customerId } : {}),
       ...(vehicleId ? { vehicle_id: vehicleId } : {}),
       ...(employeeId ? { employee_id: employeeId } : {}),
       ...(branchId ? { branch_id: branchId } : {}),
+      ...(depositAmount !== undefined ? { deposit_amount: String(depositAmount) } : {}),
+      ...(loanAmount !== undefined ? { loan_amount: String(loanAmount) } : {}),
       ...(validPaymentStatus ? { payment_status: validPaymentStatus } : {}),
       ...(validDeliveryStatus ? { delivery_status: validDeliveryStatus } : {}),
     };

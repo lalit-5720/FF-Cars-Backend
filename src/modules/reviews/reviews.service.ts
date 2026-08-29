@@ -46,6 +46,20 @@ export class ReviewsService {
     });
   }
 
+  async getApprovalSummary() {
+    const reviews = await this.prisma.reviews.findMany();
+
+    const total = reviews.length;
+    const approved = reviews.filter((review) => Boolean(review.is_published)).length;
+    const pending = total - approved;
+
+    return {
+      total,
+      approved,
+      pending,
+    };
+  }
+
   async togglePublish(id: number, is_published?: boolean) {
     const existing = await this.prisma.reviews.findUnique({ where: { review_id: id } });
     if (!existing) {

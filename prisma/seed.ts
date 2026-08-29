@@ -3,17 +3,17 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding FF-Cars PostgreSQL Database...');
+  console.log('Seeding CarRevive PostgreSQL Database...');
 
   // 1. Seed Branches
   const b1 = await prisma.branches.upsert({
     where: { branch_id: 1 },
     update: {},
     create: {
-      branch_name: 'FF Cars - Anna Nagar',
+      branch_name: 'CarRevive - Anna Nagar',
       manager_name: 'Rajkumar Swaminathan',
       phone: '9840123456',
-      email: 'annanagar@ffcars.in',
+      email: 'annanagar@carrevive.in',
       address: '100 Feet Road, Anna Nagar',
       city: 'Chennai',
       state: 'Tamil Nadu',
@@ -26,10 +26,10 @@ async function main() {
     where: { branch_id: 2 },
     update: {},
     create: {
-      branch_name: 'FF Cars - Velachery',
+      branch_name: 'CarRevive - Velachery',
       manager_name: 'Dinesh Palanisamy',
       phone: '9840234567',
-      email: 'velachery@ffcars.in',
+      email: 'velachery@carrevive.in',
       address: '100 Feet Bypass Road, Velachery',
       city: 'Chennai',
       state: 'Tamil Nadu',
@@ -46,7 +46,7 @@ async function main() {
       first_name: 'Rajkumar',
       last_name: 'Swaminathan',
       role: 'Branch Manager',
-      email: 'rajkumar.swaminathan@ffcars.in',
+      email: 'rajkumar.swaminathan@carrevive.in',
       phone: '9840123456',
       branch_id: b1.branch_id,
       status: 'Active',
@@ -60,7 +60,7 @@ async function main() {
       first_name: 'Ganesh',
       last_name: 'Chettiar',
       role: 'Sales Manager',
-      email: 'ganesh.chettiar@ffcars.in',
+      email: 'ganesh.chettiar@carrevive.in',
       phone: '9840123457',
       branch_id: b1.branch_id,
       status: 'Active',

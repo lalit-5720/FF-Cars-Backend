@@ -102,7 +102,7 @@ let AuthService = class AuthService {
                 user: {
                     id: 1,
                     name: 'System Administrator',
-                    email: lowerEmail.includes('@') ? lowerEmail : 'admin@ffcars.in',
+                    email: lowerEmail.includes('@') ? lowerEmail : 'admin@carrevive.in',
                     role: 'SYSTEM_ADMIN',
                     job_title: 'Founder & Chief Administrator',
                     branch_id: null,
