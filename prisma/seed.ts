@@ -1,6 +1,8 @@
 import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
+
 
 async function main() {
   console.log('Seeding CarRevive PostgreSQL Database...');
@@ -38,34 +40,75 @@ async function main() {
     },
   });
 
-  // 2. Seed Employees
+  // 2. Seed Employees for all 4 Roles
+  const hashedPassword = await bcrypt.hash('password123', 10);
+
+  // System Admin (Founder)
+  await prisma.employees.upsert({
+    where: { employee_id: 100 },
+    update: { password: hashedPassword, role: 'System Administrator' },
+    create: {
+      employee_id: 100,
+      first_name: 'System',
+      last_name: 'Administrator',
+      role: 'System Administrator',
+      email: 'admin@carrevive.in',
+      phone: '9840000000',
+      password: hashedPassword,
+      branch_id: b1.branch_id,
+      status: 'Active',
+    },
+  });
+
+  // Branch Manager - Anna Nagar
   await prisma.employees.upsert({
     where: { employee_id: 1 },
-    update: {},
+    update: { password: hashedPassword, role: 'Branch Manager' },
     create: {
       first_name: 'Rajkumar',
       last_name: 'Swaminathan',
       role: 'Branch Manager',
       email: 'rajkumar.swaminathan@carrevive.in',
       phone: '9840123456',
+      password: hashedPassword,
       branch_id: b1.branch_id,
       status: 'Active',
     },
   });
 
+  // Branch Manager - Velachery
+  await prisma.employees.upsert({
+    where: { employee_id: 3 },
+    update: { password: hashedPassword, role: 'Branch Manager' },
+    create: {
+      employee_id: 3,
+      first_name: 'Dinesh',
+      last_name: 'Palanisamy',
+      role: 'Branch Manager',
+      email: 'manager.velachery@carrevive.in',
+      phone: '9840234567',
+      password: hashedPassword,
+      branch_id: b2.branch_id,
+      status: 'Active',
+    },
+  });
+
+  // Sales Executive - Anna Nagar
   await prisma.employees.upsert({
     where: { employee_id: 2 },
-    update: {},
+    update: { password: hashedPassword, role: 'Sales Executive' },
     create: {
       first_name: 'Ganesh',
       last_name: 'Chettiar',
-      role: 'Sales Manager',
+      role: 'Sales Executive',
       email: 'ganesh.chettiar@carrevive.in',
       phone: '9840123457',
+      password: hashedPassword,
       branch_id: b1.branch_id,
       status: 'Active',
     },
   });
+
 
   // 3. Seed Customers
   const c1 = await prisma.customers.upsert({
@@ -191,6 +234,22 @@ async function main() {
       branch_id: b1.branch_id,
       image_url: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&q=80&w=800',
       description: 'Jaguar F-Pace R-Sport AWD with panoramic sunroof, 360-degree camera, Meridian Audio, and sport suspension.',
+    },
+    {
+      make: 'Volkswagen',
+      model: 'Virtus GT 1.5 TSI',
+      registration_number: 'TN09VW2023',
+      manufacture_year: 2023,
+      color: 'Wild Cherry Red',
+      kilometers_driven: 12000,
+      fuel_type: 'Petrol',
+      transmission: 'Automatic DSG',
+      owner_type: '1st Owner',
+      price: 1680000,
+      status: 'Available',
+      branch_id: b2.branch_id,
+      image_url: 'https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&q=80&w=800',
+      description: 'Volkswagen Virtus GT with digital cockpit, 10-inch touchscreen infotainment, ventilated seats, and 5-star safety rating.',
     },
   ];
 

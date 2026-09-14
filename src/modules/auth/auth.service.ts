@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { Role } from '../../common/enums/role.enum';
 import * as bcrypt from 'bcrypt';
 
 const DEFAULT_PASSWORD = 'password123';
@@ -46,14 +47,15 @@ export class AuthService {
       },
     });
 
-    const tokens = await this.generateTokens(customer.customer_id, customer.email || '', 'CUSTOMER');
+    const tokens = await this.generateTokens(customer.customer_id, customer.email || '', Role.CUSTOMER, null);
     return {
       ...tokens,
       user: {
         id: customer.customer_id,
         name: `${customer.first_name} ${customer.last_name || ''}`.trim(),
         email: customer.email,
-        role: 'CUSTOMER',
+        role: Role.CUSTOMER,
+        branch_id: null,
       },
     };
   }
@@ -62,25 +64,10 @@ export class AuthService {
     const lowerEmail = (loginDto.email || '').toLowerCase().trim();
     const inputPassword = loginDto.password || '';
 
-    // 1. Super Admin fallback for admin emails
-    if (lowerEmail.includes('admin') || lowerEmail === 'admin') {
-      const tokens = await this.generateTokens(1, lowerEmail, 'SYSTEM_ADMIN');
-      return {
-        ...tokens,
-        user: {
-          id: 1,
-          name: 'System Administrator',
-          email: lowerEmail.includes('@') ? lowerEmail : 'admin@carrevive.in',
-          role: 'SYSTEM_ADMIN',
-          job_title: 'Founder & Chief Administrator',
-          branch_id: null,
-        },
-      };
-    }
-
-    // 2. Search in employees table (Staff / Manager login)
+    // 1. Search in employees table (Staff / Manager / System Admin login)
     const employee = await this.prisma.employees.findFirst({
-      where: { email: { equals: loginDto.email, mode: 'insensitive' } },
+      where: { email: { equals: lowerEmail, mode: 'insensitive' } },
+      include: { branches: true },
     });
 
     if (employee) {
@@ -91,27 +78,33 @@ export class AuthService {
         }
       }
 
-      const rawRole = employee.role || 'Sales Executive';
-      const isManager = rawRole.toLowerCase().includes('manager') || rawRole.toLowerCase().includes('admin');
-      const role = isManager ? 'BRANCH_MANAGER' : 'SALES_EXECUTIVE';
+      const rawRole = (employee.role || '').toLowerCase();
+      let derivedRole: Role = Role.SALES_EXECUTIVE;
+      if (rawRole.includes('system_admin') || rawRole.includes('founder') || rawRole.includes('administrator')) {
+        derivedRole = Role.SYSTEM_ADMIN;
+      } else if (rawRole.includes('manager') || rawRole.includes('admin')) {
+        derivedRole = Role.BRANCH_MANAGER;
+      }
 
-      const tokens = await this.generateTokens(employee.employee_id, employee.email || '', role);
+      const branchId = derivedRole === Role.SYSTEM_ADMIN ? null : (employee.branch_id || 1);
+      const tokens = await this.generateTokens(employee.employee_id, employee.email || '', derivedRole, branchId);
+
       return {
         ...tokens,
         user: {
           id: employee.employee_id,
           name: `${employee.first_name} ${employee.last_name || ''}`.trim(),
           email: employee.email,
-          role,
-          job_title: rawRole,
-          branch_id: employee.branch_id || 1,
+          role: derivedRole,
+          job_title: employee.role || derivedRole,
+          branch_id: branchId,
         },
       };
     }
 
-    // 3. Search in customers table (Customer login)
+    // 2. Search in customers table (Customer login)
     const customer = await this.prisma.customers.findFirst({
-      where: { email: { equals: loginDto.email, mode: 'insensitive' } },
+      where: { email: { equals: lowerEmail, mode: 'insensitive' } },
     });
 
     if (customer) {
@@ -122,37 +115,29 @@ export class AuthService {
         }
       }
 
-      const tokens = await this.generateTokens(customer.customer_id, customer.email || '', 'CUSTOMER');
+      const tokens = await this.generateTokens(customer.customer_id, customer.email || '', Role.CUSTOMER, null);
       return {
         ...tokens,
         user: {
           id: customer.customer_id,
           name: `${customer.first_name} ${customer.last_name || ''}`.trim(),
           email: customer.email,
-          role: 'CUSTOMER',
+          role: Role.CUSTOMER,
+          branch_id: null,
         },
       };
     }
 
-    // 5. Default fallback login for any new/test user
-    const tokens = await this.generateTokens(999, lowerEmail, 'ADMIN');
-    return {
-      ...tokens,
-      user: {
-        id: 999,
-        name: lowerEmail.split('@')[0] || 'Admin User',
-        email: lowerEmail,
-        role: 'ADMIN',
-      },
-    };
+    // 3. Invalid credentials - No fallback admin tokens!
+    throw new UnauthorizedException('Invalid email or password.');
   }
 
-  async refreshTokens(userId: number | string, email: string, role: string) {
-    return this.generateTokens(userId, email, role);
+  async refreshTokens(userId: number | string, email: string, role: Role, branchId: number | null = null) {
+    return this.generateTokens(userId, email, role, branchId);
   }
 
-  private async generateTokens(id: number | string, email: string, role: string) {
-    const payload = { sub: id, email, role };
+  private async generateTokens(id: number | string, email: string, role: Role, branchId: number | null = null) {
+    const payload = { sub: id, email, role, branch_id: branchId };
 
     const accessToken = await this.jwtService.signAsync(payload, {
       secret: this.configService.get<string>('JWT_SECRET') || 'super-secret-jwt-key',
@@ -170,3 +155,4 @@ export class AuthService {
     };
   }
 }
+

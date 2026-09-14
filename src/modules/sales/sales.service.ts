@@ -6,6 +6,24 @@ import { Prisma } from '@prisma/client';
 export class SalesService {
   constructor(private prisma: PrismaService) {}
 
+  private normalizePaymentStatus(paymentStatus?: string, depositAmount?: number, loanAmount?: number) {
+    const raw = String(paymentStatus || '').trim();
+    const deposit = Number(depositAmount || 0);
+    const loan = Number(loanAmount || 0);
+
+    if (!raw) {
+      if (deposit > 0 || loan > 0) return 'Pending';
+      return 'Paid';
+    }
+
+    const normalized = raw.toLowerCase();
+    if (normalized.includes('paid') || normalized.includes('completed')) return 'Paid';
+    if (normalized.includes('deposit') || normalized.includes('loan') || normalized.includes('pending') || normalized.includes('sanction')) return 'Pending';
+
+    if (deposit > 0 || loan > 0) return 'Pending';
+    return 'Paid';
+  }
+
   async findAll(query?: {
     branchId?: number;
     paymentStatus?: string;
@@ -65,11 +83,9 @@ export class SalesService {
     const rawDeliveryStatus = data.delivery_status || data.deliveryStatus || 'Pending';
     const validDeliveryStatus = (rawDeliveryStatus === 'Scheduled' || rawDeliveryStatus === 'SCHEDULED') ? 'Pending' : rawDeliveryStatus;
 
-    const rawPaymentStatus = data.payment_status || data.paymentStatus || 'Paid';
-    const validPaymentStatus = (rawPaymentStatus === 'Completed' || rawPaymentStatus === 'COMPLETED') ? 'Paid' : rawPaymentStatus;
-
     const depositAmount = Number(data.deposit_amount ?? data.depositAmount ?? (data.loan_amount || data.loanAmount ? (data.downpayment ?? 0) : price));
     const loanAmount = Number(data.loan_amount ?? data.loanAmount ?? 0);
+    const validPaymentStatus = this.normalizePaymentStatus(data.payment_status || data.paymentStatus, depositAmount, loanAmount);
 
     const createData: Prisma.salesUncheckedCreateInput = {
       customer_id: customerId,
@@ -127,11 +143,17 @@ export class SalesService {
     const rawDeliveryStatus = data.delivery_status || data.deliveryStatus;
     const validDeliveryStatus = (rawDeliveryStatus === 'Scheduled' || rawDeliveryStatus === 'SCHEDULED') ? 'Pending' : rawDeliveryStatus;
 
-    const rawPaymentStatus = data.payment_status || data.paymentStatus;
-    const validPaymentStatus = (rawPaymentStatus === 'Completed' || rawPaymentStatus === 'COMPLETED') ? 'Paid' : rawPaymentStatus;
+    const sellingPrice = data.selling_price !== undefined || data.sellingPrice !== undefined ? Number(data.selling_price ?? data.sellingPrice) : undefined;
+    const finalAmount = data.final_amount !== undefined || data.finalAmount !== undefined ? Number(data.final_amount ?? data.finalAmount) : undefined;
+    const discount = data.discount !== undefined ? Number(data.discount) : undefined;
+    const tax = data.tax !== undefined ? Number(data.tax) : undefined;
 
     const depositAmount = data.deposit_amount !== undefined || data.depositAmount !== undefined ? Number(data.deposit_amount ?? data.depositAmount ?? 0) : undefined;
     const loanAmount = data.loan_amount !== undefined || data.loanAmount !== undefined ? Number(data.loan_amount ?? data.loanAmount ?? 0) : undefined;
+    const hasPaymentStatus = data.payment_status !== undefined || data.paymentStatus !== undefined;
+    const validPaymentStatus = hasPaymentStatus
+      ? this.normalizePaymentStatus(data.payment_status || data.paymentStatus, depositAmount ?? 0, loanAmount ?? 0)
+      : undefined;
 
     const updateData: Prisma.salesUncheckedUpdateInput = {
       ...(customerId ? { customer_id: customerId } : {}),
@@ -140,6 +162,10 @@ export class SalesService {
       ...(branchId ? { branch_id: branchId } : {}),
       ...(depositAmount !== undefined ? { deposit_amount: String(depositAmount) } : {}),
       ...(loanAmount !== undefined ? { loan_amount: String(loanAmount) } : {}),
+      ...(sellingPrice !== undefined && Number.isFinite(sellingPrice) ? { selling_price: String(sellingPrice) } : {}),
+      ...(finalAmount !== undefined && Number.isFinite(finalAmount) ? { final_amount: String(finalAmount) } : {}),
+      ...(discount !== undefined && Number.isFinite(discount) ? { discount: String(discount) } : {}),
+      ...(tax !== undefined && Number.isFinite(tax) ? { tax: String(tax) } : {}),
       ...(validPaymentStatus ? { payment_status: validPaymentStatus } : {}),
       ...(validDeliveryStatus ? { delivery_status: validDeliveryStatus } : {}),
     };

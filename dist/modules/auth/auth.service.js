@@ -47,6 +47,7 @@ const common_1 = require("@nestjs/common");
 const jwt_1 = require("@nestjs/jwt");
 const config_1 = require("@nestjs/config");
 const prisma_service_1 = require("../../prisma/prisma.service");
+const role_enum_1 = require("../../common/enums/role.enum");
 const bcrypt = __importStar(require("bcrypt"));
 const DEFAULT_PASSWORD = 'password123';
 let AuthService = class AuthService {
@@ -81,36 +82,24 @@ let AuthService = class AuthService {
                 preferred_contact: 'Email',
             },
         });
-        const tokens = await this.generateTokens(customer.customer_id, customer.email || '', 'CUSTOMER');
+        const tokens = await this.generateTokens(customer.customer_id, customer.email || '', role_enum_1.Role.CUSTOMER, null);
         return {
             ...tokens,
             user: {
                 id: customer.customer_id,
                 name: `${customer.first_name} ${customer.last_name || ''}`.trim(),
                 email: customer.email,
-                role: 'CUSTOMER',
+                role: role_enum_1.Role.CUSTOMER,
+                branch_id: null,
             },
         };
     }
     async login(loginDto) {
         const lowerEmail = (loginDto.email || '').toLowerCase().trim();
         const inputPassword = loginDto.password || '';
-        if (lowerEmail.includes('admin') || lowerEmail === 'admin') {
-            const tokens = await this.generateTokens(1, lowerEmail, 'SYSTEM_ADMIN');
-            return {
-                ...tokens,
-                user: {
-                    id: 1,
-                    name: 'System Administrator',
-                    email: lowerEmail.includes('@') ? lowerEmail : 'admin@carrevive.in',
-                    role: 'SYSTEM_ADMIN',
-                    job_title: 'Founder & Chief Administrator',
-                    branch_id: null,
-                },
-            };
-        }
         const employee = await this.prisma.employees.findFirst({
-            where: { email: { equals: loginDto.email, mode: 'insensitive' } },
+            where: { email: { equals: lowerEmail, mode: 'insensitive' } },
+            include: { branches: true },
         });
         if (employee) {
             if (employee.password) {
@@ -119,24 +108,30 @@ let AuthService = class AuthService {
                     throw new common_1.UnauthorizedException('Invalid email or password.');
                 }
             }
-            const rawRole = employee.role || 'Sales Executive';
-            const isManager = rawRole.toLowerCase().includes('manager') || rawRole.toLowerCase().includes('admin');
-            const role = isManager ? 'BRANCH_MANAGER' : 'SALES_EXECUTIVE';
-            const tokens = await this.generateTokens(employee.employee_id, employee.email || '', role);
+            const rawRole = (employee.role || '').toLowerCase();
+            let derivedRole = role_enum_1.Role.SALES_EXECUTIVE;
+            if (rawRole.includes('system_admin') || rawRole.includes('founder') || rawRole.includes('administrator')) {
+                derivedRole = role_enum_1.Role.SYSTEM_ADMIN;
+            }
+            else if (rawRole.includes('manager') || rawRole.includes('admin')) {
+                derivedRole = role_enum_1.Role.BRANCH_MANAGER;
+            }
+            const branchId = derivedRole === role_enum_1.Role.SYSTEM_ADMIN ? null : (employee.branch_id || 1);
+            const tokens = await this.generateTokens(employee.employee_id, employee.email || '', derivedRole, branchId);
             return {
                 ...tokens,
                 user: {
                     id: employee.employee_id,
                     name: `${employee.first_name} ${employee.last_name || ''}`.trim(),
                     email: employee.email,
-                    role,
-                    job_title: rawRole,
-                    branch_id: employee.branch_id || 1,
+                    role: derivedRole,
+                    job_title: employee.role || derivedRole,
+                    branch_id: branchId,
                 },
             };
         }
         const customer = await this.prisma.customers.findFirst({
-            where: { email: { equals: loginDto.email, mode: 'insensitive' } },
+            where: { email: { equals: lowerEmail, mode: 'insensitive' } },
         });
         if (customer) {
             if (customer.password) {
@@ -145,33 +140,25 @@ let AuthService = class AuthService {
                     throw new common_1.UnauthorizedException('Invalid email or password.');
                 }
             }
-            const tokens = await this.generateTokens(customer.customer_id, customer.email || '', 'CUSTOMER');
+            const tokens = await this.generateTokens(customer.customer_id, customer.email || '', role_enum_1.Role.CUSTOMER, null);
             return {
                 ...tokens,
                 user: {
                     id: customer.customer_id,
                     name: `${customer.first_name} ${customer.last_name || ''}`.trim(),
                     email: customer.email,
-                    role: 'CUSTOMER',
+                    role: role_enum_1.Role.CUSTOMER,
+                    branch_id: null,
                 },
             };
         }
-        const tokens = await this.generateTokens(999, lowerEmail, 'ADMIN');
-        return {
-            ...tokens,
-            user: {
-                id: 999,
-                name: lowerEmail.split('@')[0] || 'Admin User',
-                email: lowerEmail,
-                role: 'ADMIN',
-            },
-        };
+        throw new common_1.UnauthorizedException('Invalid email or password.');
     }
-    async refreshTokens(userId, email, role) {
-        return this.generateTokens(userId, email, role);
+    async refreshTokens(userId, email, role, branchId = null) {
+        return this.generateTokens(userId, email, role, branchId);
     }
-    async generateTokens(id, email, role) {
-        const payload = { sub: id, email, role };
+    async generateTokens(id, email, role, branchId = null) {
+        const payload = { sub: id, email, role, branch_id: branchId };
         const accessToken = await this.jwtService.signAsync(payload, {
             secret: this.configService.get('JWT_SECRET') || 'super-secret-jwt-key',
             expiresIn: this.configService.get('JWT_ACCESS_EXPIRY') || '15m',

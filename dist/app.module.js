@@ -22,6 +22,9 @@ const payments_module_1 = require("./modules/payments/payments.module");
 const deliveries_module_1 = require("./modules/deliveries/deliveries.module");
 const upload_module_1 = require("./modules/upload/upload.module");
 const reviews_module_1 = require("./modules/reviews/reviews.module");
+const bi_module_1 = require("./modules/bi/bi.module");
+const analytics_module_1 = require("./modules/analytics/analytics.module");
+const events_module_1 = require("./common/gateways/events.module");
 const cache_module_1 = require("./common/services/cache.module");
 let AppModule = class AppModule {
 };
@@ -35,6 +38,7 @@ exports.AppModule = AppModule = __decorate([
             }),
             prisma_module_1.PrismaModule,
             cache_module_1.CacheModule,
+            events_module_1.EventsModule,
             auth_module_1.AuthModule,
             branches_module_1.BranchesModule,
             vehicles_module_1.VehiclesModule,
@@ -47,6 +51,8 @@ exports.AppModule = AppModule = __decorate([
             deliveries_module_1.DeliveriesModule,
             upload_module_1.UploadModule,
             reviews_module_1.ReviewsModule,
+            bi_module_1.BiModule,
+            analytics_module_1.AnalyticsModule,
         ],
     })
 ], AppModule);

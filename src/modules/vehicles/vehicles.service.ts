@@ -1,10 +1,32 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EventsGateway } from '../../common/gateways/events.gateway';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class VehiclesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private eventsGateway: EventsGateway,
+  ) {}
+
+  private normalizeVehicleData(data: Prisma.vehiclesUpdateInput | Prisma.vehiclesCreateInput) {
+    if (!data || typeof data !== 'object') return data;
+
+    const normalized = { ...data } as Record<string, any>;
+
+    for (const field of ['insurance_valid_till', 'purchase_date']) {
+      const value = normalized[field];
+      if (typeof value === 'string') {
+        const date = new Date(value);
+        if (!Number.isNaN(date.getTime())) {
+          normalized[field] = date;
+        }
+      }
+    }
+
+    return normalized;
+  }
 
   async findAll(query?: {
     make?: string;
@@ -77,23 +99,66 @@ export class VehiclesService {
   }
 
   async create(data: Prisma.vehiclesCreateInput) {
-    return this.prisma.vehicles.create({ data });
+    const created = await this.prisma.vehicles.create({ data: this.normalizeVehicleData(data) as Prisma.vehiclesCreateInput });
+
+    this.eventsGateway.emitCarAvailabilityUpdated({
+      vehicleId: created.vehicle_id,
+      status: created.status || 'Available',
+      make: created.make,
+      model: created.model,
+      branchId: created.branch_id,
+    });
+
+    this.eventsGateway.emitNotification({
+      title: 'New Vehicle Added',
+      message: `${created.make} ${created.model} added to inventory.`,
+      branchId: created.branch_id,
+    });
+
+    return created;
   }
 
   async update(id: number, data: Prisma.vehiclesUpdateInput) {
     await this.findOne(id);
-    return this.prisma.vehicles.update({
+    const updated = await this.prisma.vehicles.update({
       where: { vehicle_id: id },
-      data,
+      data: this.normalizeVehicleData(data) as Prisma.vehiclesUpdateInput,
     });
+
+    if (data.status) {
+      this.eventsGateway.emitCarAvailabilityUpdated({
+        vehicleId: updated.vehicle_id,
+        status: String(data.status),
+        make: updated.make,
+        model: updated.model,
+        branchId: updated.branch_id,
+      });
+
+      this.eventsGateway.emitNotification({
+        title: 'Vehicle Status Changed',
+        message: `${updated.make} ${updated.model} status updated to ${data.status}.`,
+        branchId: updated.branch_id,
+      });
+    }
+
+    return updated;
   }
 
   async remove(id: number) {
-    await this.findOne(id);
-    return this.prisma.vehicles.delete({
+    const existing = await this.findOne(id);
+    const result = await this.prisma.vehicles.delete({
       where: { vehicle_id: id },
     });
+
+    this.eventsGateway.emitNotification({
+      title: 'Vehicle Removed',
+      message: `${existing.make} ${existing.model} removed from inventory.`,
+      branchId: existing.branch_id,
+    });
+
+    return result;
   }
+
 
   async getStats() {
     const totalVehicles = await this.prisma.vehicles.count();

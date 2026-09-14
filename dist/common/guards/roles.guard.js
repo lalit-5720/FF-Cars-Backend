@@ -23,14 +23,15 @@ let RolesGuard = class RolesGuard {
             context.getHandler(),
             context.getClass(),
         ]);
-        if (!requiredRoles) {
+        if (!requiredRoles || requiredRoles.length === 0) {
             return true;
         }
         const { user } = context.switchToHttp().getRequest();
-        if (!user) {
+        if (!user || !user.role) {
             return false;
         }
-        return requiredRoles.some((role) => user.role === role);
+        const userRoles = Array.isArray(user.role) ? user.role : [user.role];
+        return requiredRoles.some((role) => userRoles.includes(role));
     }
 };
 exports.RolesGuard = RolesGuard;

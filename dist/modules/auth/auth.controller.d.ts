@@ -13,7 +13,8 @@ export declare class AuthController {
             id: number;
             name: string;
             email: string | null;
-            role: string;
+            role: import("../../common/enums/role.enum").Role;
+            branch_id: null;
         };
         accessToken: string;
         refreshToken: string;
@@ -22,32 +23,21 @@ export declare class AuthController {
         user: {
             id: number;
             name: string;
-            email: string;
-            role: string;
+            email: string | null;
+            role: import("../../common/enums/role.enum").Role.SYSTEM_ADMIN | import("../../common/enums/role.enum").Role.BRANCH_MANAGER | import("../../common/enums/role.enum").Role.SALES_EXECUTIVE;
             job_title: string;
+            branch_id: number | null;
+        };
+        accessToken: string;
+        refreshToken: string;
+    } | {
+        user: {
+            id: number;
+            name: string;
+            email: string | null;
+            role: import("../../common/enums/role.enum").Role;
             branch_id: null;
-        };
-        accessToken: string;
-        refreshToken: string;
-    } | {
-        user: {
-            id: number;
-            name: string;
-            email: string | null;
-            role: string;
-            job_title: string;
-            branch_id: number;
-        };
-        accessToken: string;
-        refreshToken: string;
-    } | {
-        user: {
-            id: number;
-            name: string;
-            email: string | null;
-            role: string;
             job_title?: undefined;
-            branch_id?: undefined;
         };
         accessToken: string;
         refreshToken: string;

@@ -1,11 +1,17 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { ReviewsService } from './reviews.service';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Role } from '../../common/enums/role.enum';
 
 @Controller('reviews')
 export class ReviewsController {
   constructor(private readonly reviewsService: ReviewsService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CUSTOMER, Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER)
   create(@Body() data: { customer_id?: number; customerId?: number; vehicle_id?: number; vehicleId?: number; rating?: number; comment: string }) {
     return this.reviewsService.create(data);
   }
@@ -21,11 +27,15 @@ export class ReviewsController {
   }
 
   @Get('summary')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER)
   getApprovalSummary() {
     return this.reviewsService.getApprovalSummary();
   }
 
   @Patch(':id/publish')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER)
   togglePublish(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { is_published?: boolean },
@@ -34,7 +44,10 @@ export class ReviewsController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.reviewsService.remove(id);
   }
 }
+

@@ -13,6 +13,9 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { DeliveriesModule } from './modules/deliveries/deliveries.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
+import { BiModule } from './modules/bi/bi.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { EventsModule } from './common/gateways/events.module';
 import { CacheModule } from './common/services/cache.module';
 
 @Module({
@@ -26,6 +29,7 @@ import { CacheModule } from './common/services/cache.module';
     // Global Services
     PrismaModule,
     CacheModule,
+    EventsModule,
 
     // Domain Modules matching 9-Table Schema
     AuthModule,
@@ -40,6 +44,9 @@ import { CacheModule } from './common/services/cache.module';
     DeliveriesModule,
     UploadModule,
     ReviewsModule,
+    BiModule,
+    AnalyticsModule,
   ],
 })
 export class AppModule {}
+

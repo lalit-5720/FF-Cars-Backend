@@ -1,6 +1,10 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { VehiclesService } from './vehicles.service';
 import { Prisma } from '@prisma/client';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Role } from '../../common/enums/role.enum';
 
 @Controller('vehicles')
 export class VehiclesController {
@@ -42,11 +46,15 @@ export class VehiclesController {
   }
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER)
   create(@Body() data: Prisma.vehiclesCreateInput) {
     return this.vehiclesService.create(data);
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER)
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() data: Prisma.vehiclesUpdateInput,
@@ -55,7 +63,10 @@ export class VehiclesController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.vehiclesService.remove(id);
   }
 }
+
