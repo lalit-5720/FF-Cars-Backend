@@ -49,7 +49,6 @@ const config_1 = require("@nestjs/config");
 const prisma_service_1 = require("../../prisma/prisma.service");
 const role_enum_1 = require("../../common/enums/role.enum");
 const bcrypt = __importStar(require("bcrypt"));
-const DEFAULT_PASSWORD = 'password123';
 let AuthService = class AuthService {
     prisma;
     jwtService;
@@ -58,6 +57,14 @@ let AuthService = class AuthService {
         this.prisma = prisma;
         this.jwtService = jwtService;
         this.configService = configService;
+        const jwtSecret = this.configService.get('JWT_SECRET');
+        if (!jwtSecret) {
+            throw new Error('JWT_SECRET environment variable is not set');
+        }
+        const jwtRefreshSecret = this.configService.get('JWT_REFRESH_SECRET');
+        if (!jwtRefreshSecret) {
+            throw new Error('JWT_REFRESH_SECRET environment variable is not set');
+        }
     }
     async register(registerDto) {
         const lowerEmail = (registerDto.email || '').toLowerCase().trim();
@@ -70,7 +77,10 @@ let AuthService = class AuthService {
         if (existing) {
             throw new common_1.UnauthorizedException('An account with this email address already exists.');
         }
-        const plainPassword = registerDto.password || DEFAULT_PASSWORD;
+        const plainPassword = registerDto.password;
+        if (!plainPassword) {
+            throw new common_1.UnauthorizedException('Password is required.');
+        }
         const hashedPassword = await bcrypt.hash(plainPassword, 10);
         const customer = await this.prisma.customers.create({
             data: {
@@ -102,30 +112,24 @@ let AuthService = class AuthService {
             include: { branches: true },
         });
         if (employee) {
-            if (employee.password) {
-                const isMatch = await bcrypt.compare(inputPassword, employee.password);
-                if (!isMatch && inputPassword !== DEFAULT_PASSWORD) {
-                    throw new common_1.UnauthorizedException('Invalid email or password.');
-                }
+            if (!employee.password) {
+                throw new common_1.UnauthorizedException('Invalid email or password.');
             }
-            const rawRole = (employee.role || '').toLowerCase();
-            let derivedRole = role_enum_1.Role.SALES_EXECUTIVE;
-            if (rawRole.includes('system_admin') || rawRole.includes('founder') || rawRole.includes('administrator')) {
-                derivedRole = role_enum_1.Role.SYSTEM_ADMIN;
+            const isMatch = await bcrypt.compare(inputPassword, employee.password);
+            if (!isMatch) {
+                throw new common_1.UnauthorizedException('Invalid email or password.');
             }
-            else if (rawRole.includes('manager') || rawRole.includes('admin')) {
-                derivedRole = role_enum_1.Role.BRANCH_MANAGER;
-            }
-            const branchId = derivedRole === role_enum_1.Role.SYSTEM_ADMIN ? null : (employee.branch_id || 1);
-            const tokens = await this.generateTokens(employee.employee_id, employee.email || '', derivedRole, branchId);
+            const userRole = employee.role;
+            const branchId = userRole === role_enum_1.Role.SYSTEM_ADMIN ? null : (employee.branch_id || 1);
+            const tokens = await this.generateTokens(employee.employee_id, employee.email || '', userRole, branchId);
             return {
                 ...tokens,
                 user: {
                     id: employee.employee_id,
                     name: `${employee.first_name} ${employee.last_name || ''}`.trim(),
                     email: employee.email,
-                    role: derivedRole,
-                    job_title: employee.role || derivedRole,
+                    role: userRole,
+                    job_title: employee.job_title || userRole,
                     branch_id: branchId,
                 },
             };
@@ -134,11 +138,12 @@ let AuthService = class AuthService {
             where: { email: { equals: lowerEmail, mode: 'insensitive' } },
         });
         if (customer) {
-            if (customer.password) {
-                const isMatch = await bcrypt.compare(inputPassword, customer.password);
-                if (!isMatch && inputPassword !== DEFAULT_PASSWORD) {
-                    throw new common_1.UnauthorizedException('Invalid email or password.');
-                }
+            if (!customer.password) {
+                throw new common_1.UnauthorizedException('Invalid email or password.');
+            }
+            const isMatch = await bcrypt.compare(inputPassword, customer.password);
+            if (!isMatch) {
+                throw new common_1.UnauthorizedException('Invalid email or password.');
             }
             const tokens = await this.generateTokens(customer.customer_id, customer.email || '', role_enum_1.Role.CUSTOMER, null);
             return {
@@ -159,12 +164,20 @@ let AuthService = class AuthService {
     }
     async generateTokens(id, email, role, branchId = null) {
         const payload = { sub: id, email, role, branch_id: branchId };
+        const jwtSecret = this.configService.get('JWT_SECRET');
+        if (!jwtSecret) {
+            throw new Error('JWT_SECRET environment variable is not set');
+        }
+        const jwtRefreshSecret = this.configService.get('JWT_REFRESH_SECRET');
+        if (!jwtRefreshSecret) {
+            throw new Error('JWT_REFRESH_SECRET environment variable is not set');
+        }
         const accessToken = await this.jwtService.signAsync(payload, {
-            secret: this.configService.get('JWT_SECRET') || 'super-secret-jwt-key',
+            secret: jwtSecret,
             expiresIn: this.configService.get('JWT_ACCESS_EXPIRY') || '15m',
         });
         const refreshToken = await this.jwtService.signAsync(payload, {
-            secret: this.configService.get('JWT_REFRESH_SECRET') || 'super-secret-jwt-refresh-key',
+            secret: jwtRefreshSecret,
             expiresIn: this.configService.get('JWT_REFRESH_EXPIRY') || '7d',
         });
         return {

@@ -7,15 +7,22 @@ import { LoginDto } from './dto/login.dto';
 import { Role } from '../../common/enums/role.enum';
 import * as bcrypt from 'bcrypt';
 
-const DEFAULT_PASSWORD = 'password123';
-
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
-  ) {}
+  ) {
+    const jwtSecret = this.configService.get<string>('JWT_SECRET');
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET environment variable is not set');
+    }
+    const jwtRefreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
+    if (!jwtRefreshSecret) {
+      throw new Error('JWT_REFRESH_SECRET environment variable is not set');
+    }
+  }
 
   async register(registerDto: RegisterDto) {
     const lowerEmail = (registerDto.email || '').toLowerCase().trim();
@@ -32,7 +39,10 @@ export class AuthService {
     }
 
     // Encrypt customer password
-    const plainPassword = registerDto.password || DEFAULT_PASSWORD;
+    const plainPassword = registerDto.password;
+    if (!plainPassword) {
+      throw new UnauthorizedException('Password is required.');
+    }
     const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
     // Create customer record with encrypted password
@@ -71,23 +81,17 @@ export class AuthService {
     });
 
     if (employee) {
-      if (employee.password) {
-        const isMatch = await bcrypt.compare(inputPassword, employee.password);
-        if (!isMatch && inputPassword !== DEFAULT_PASSWORD) {
-          throw new UnauthorizedException('Invalid email or password.');
-        }
+      if (!employee.password) {
+        throw new UnauthorizedException('Invalid email or password.');
+      }
+      const isMatch = await bcrypt.compare(inputPassword, employee.password);
+      if (!isMatch) {
+        throw new UnauthorizedException('Invalid email or password.');
       }
 
-      const rawRole = (employee.role || '').toLowerCase();
-      let derivedRole: Role = Role.SALES_EXECUTIVE;
-      if (rawRole.includes('system_admin') || rawRole.includes('founder') || rawRole.includes('administrator')) {
-        derivedRole = Role.SYSTEM_ADMIN;
-      } else if (rawRole.includes('manager') || rawRole.includes('admin')) {
-        derivedRole = Role.BRANCH_MANAGER;
-      }
-
-      const branchId = derivedRole === Role.SYSTEM_ADMIN ? null : (employee.branch_id || 1);
-      const tokens = await this.generateTokens(employee.employee_id, employee.email || '', derivedRole, branchId);
+      const userRole: Role = employee.role as unknown as Role;
+      const branchId = userRole === Role.SYSTEM_ADMIN ? null : (employee.branch_id || 1);
+      const tokens = await this.generateTokens(employee.employee_id, employee.email || '', userRole, branchId);
 
       return {
         ...tokens,
@@ -95,8 +99,8 @@ export class AuthService {
           id: employee.employee_id,
           name: `${employee.first_name} ${employee.last_name || ''}`.trim(),
           email: employee.email,
-          role: derivedRole,
-          job_title: employee.role || derivedRole,
+          role: userRole,
+          job_title: employee.job_title || userRole,
           branch_id: branchId,
         },
       };
@@ -108,11 +112,12 @@ export class AuthService {
     });
 
     if (customer) {
-      if (customer.password) {
-        const isMatch = await bcrypt.compare(inputPassword, customer.password);
-        if (!isMatch && inputPassword !== DEFAULT_PASSWORD) {
-          throw new UnauthorizedException('Invalid email or password.');
-        }
+      if (!customer.password) {
+        throw new UnauthorizedException('Invalid email or password.');
+      }
+      const isMatch = await bcrypt.compare(inputPassword, customer.password);
+      if (!isMatch) {
+        throw new UnauthorizedException('Invalid email or password.');
       }
 
       const tokens = await this.generateTokens(customer.customer_id, customer.email || '', Role.CUSTOMER, null);
@@ -139,13 +144,22 @@ export class AuthService {
   private async generateTokens(id: number | string, email: string, role: Role, branchId: number | null = null) {
     const payload = { sub: id, email, role, branch_id: branchId };
 
+    const jwtSecret = this.configService.get<string>('JWT_SECRET');
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET environment variable is not set');
+    }
+    const jwtRefreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
+    if (!jwtRefreshSecret) {
+      throw new Error('JWT_REFRESH_SECRET environment variable is not set');
+    }
+
     const accessToken = await this.jwtService.signAsync(payload, {
-      secret: this.configService.get<string>('JWT_SECRET') || 'super-secret-jwt-key',
+      secret: jwtSecret,
       expiresIn: (this.configService.get<string>('JWT_ACCESS_EXPIRY') as any) || '15m',
     });
 
     const refreshToken = await this.jwtService.signAsync(payload, {
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET') || 'super-secret-jwt-refresh-key',
+      secret: jwtRefreshSecret,
       expiresIn: (this.configService.get<string>('JWT_REFRESH_EXPIRY') as any) || '7d',
     });
 
@@ -155,4 +169,3 @@ export class AuthService {
     };
   }
 }
-

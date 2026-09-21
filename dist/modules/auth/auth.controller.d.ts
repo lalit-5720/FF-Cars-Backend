@@ -24,7 +24,7 @@ export declare class AuthController {
             id: number;
             name: string;
             email: string | null;
-            role: import("../../common/enums/role.enum").Role.SYSTEM_ADMIN | import("../../common/enums/role.enum").Role.BRANCH_MANAGER | import("../../common/enums/role.enum").Role.SALES_EXECUTIVE;
+            role: import("../../common/enums/role.enum").Role;
             job_title: string;
             branch_id: number | null;
         };

@@ -8,16 +8,14 @@ async function main() {
   console.log('Generated bcrypt hash for password123:', hash);
 
   const updatedCustomers = await prisma.customers.updateMany({
-    where: { password: null },
     data: { password: hash },
   });
-  console.log(`Updated ${updatedCustomers.count} customers with encrypted default password.`);
+  console.log(`Updated ${updatedCustomers.count} customers with password123.`);
 
   const updatedEmployees = await prisma.employees.updateMany({
-    where: { password: null },
     data: { password: hash },
   });
-  console.log(`Updated ${updatedEmployees.count} employees with encrypted default password.`);
+  console.log(`Updated ${updatedEmployees.count} employees with password123.`);
 }
 
 main()

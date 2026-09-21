@@ -25,7 +25,7 @@ export declare class AuthService {
             id: number;
             name: string;
             email: string | null;
-            role: Role.SYSTEM_ADMIN | Role.BRANCH_MANAGER | Role.SALES_EXECUTIVE;
+            role: Role;
             job_title: string;
             branch_id: number | null;
         };

@@ -68,11 +68,12 @@ export class DecisionScoreService {
     const totalVehicles = vehicles.length || 1;
     const availableVehicles = vehicles.filter((v) => (v.status || '').toLowerCase() === 'available');
     
-    // Slow-moving vehicles (over 45 days in inventory)
+    // Slow-moving vehicles (over 45 days in inventory calculated from purchase_date or created_at)
     const now = Date.now();
     const slowMovingVehicles = availableVehicles.filter((v) => {
-      if (!v.created_at) return false;
-      const days = Math.floor((now - new Date(v.created_at).getTime()) / (1000 * 60 * 60 * 24));
+      const dateVal = v.purchase_date || v.created_at;
+      if (!dateVal) return false;
+      const days = Math.floor((now - new Date(dateVal).getTime()) / (1000 * 60 * 60 * 24));
       return days > 45;
     });
 
@@ -223,21 +224,29 @@ export class DecisionScoreService {
       });
     }
 
+    const branchA = branches[0]?.branch_name || 'Chennai Central';
+    const branchB = branches[1]?.branch_name || 'OMR';
+
     // Drivers
     const positive_drivers: DecisionDriver[] = [
-      { metric: 'revenue_growth', label: 'Revenue Growth', value: '+18.6%', contribution: Number((salesPerformanceScore * 0.25).toFixed(2)), isPositive: true },
+      { metric: 'revenue_growth', label: 'Sales Execution', value: `${totalSalesCount} units sold`, contribution: Number((salesPerformanceScore * 0.25).toFixed(2)), isPositive: true },
       { metric: 'customer_rating', label: 'Customer Rating', value: `${avgRating.toFixed(1)}/5`, contribution: Number((customerSatisfactionScore * 0.10).toFixed(2)), isPositive: true },
-      { metric: 'branch_a_performance', label: 'Anna Nagar Performance', value: '+11% vs avg', contribution: Number((branchPerformanceScore * 0.15).toFixed(2)), isPositive: true },
+      { metric: 'branch_a_performance', label: `${branchA} Activity`, value: 'Active', contribution: Number((branchPerformanceScore * 0.15).toFixed(2)), isPositive: true },
     ];
 
     const negative_drivers: DecisionDriver[] = [
-      { metric: 'slow_moving_inventory', label: 'Slow-Moving Stock', value: `${slowMovingVehicles.length} vehicles`, contribution: -6.20, isPositive: false },
-      { metric: 'branch_b_underperformance', label: 'Velachery Performance', value: '-14% vs avg', contribution: -4.10, isPositive: false },
-      { metric: 'pending_test_drives', label: 'Test Drive Backlog', value: `${pendingTestDrivesCount} pending`, contribution: -2.50, isPositive: false },
+      { metric: 'slow_moving_inventory', label: 'Aging Vehicles (>45d)', value: `${slowMovingVehicles.length} vehicles`, contribution: -4.50, isPositive: false },
+      { metric: 'pending_test_drives', label: 'Pending Test Drives', value: `${pendingTestDrivesCount} pending`, contribution: -2.50, isPositive: false },
     ];
 
+    const dNow = new Date();
+    const dStart = new Date(dNow.getFullYear(), dNow.getMonth() - 1, 1);
+
     return {
-      period: { start: '2026-08-01', end: '2026-09-05' },
+      period: {
+        start: dStart.toISOString().slice(0, 10),
+        end: dNow.toISOString().slice(0, 10),
+      },
       branch_id: branchId ?? null,
       decision_score: finalScore,
       status,

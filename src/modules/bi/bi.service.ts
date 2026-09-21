@@ -81,18 +81,64 @@ export class BiService {
       ...this.buildDateFilter('sale_date', query),
     };
 
-    const salesAggregate = await this.prisma.sales.aggregate({
+    const salesWithVehicles = await this.prisma.sales.findMany({
       where: salesWhere,
-      _sum: {
+      select: {
+        sale_id: true,
         final_amount: true,
         selling_price: true,
-      },
-      _count: {
-        sale_id: true,
+        sale_date: true,
+        vehicles: {
+          select: {
+            purchase_price: true,
+            purchase_date: true,
+            created_at: true,
+          },
+        },
       },
     });
 
-    const vehicleCount = await this.prisma.vehicles.count({
+    let totalRevenue = 0;
+    let totalCost = 0;
+    let totalDaysToSell = 0;
+    let daysToSellCount = 0;
+
+    for (const s of salesWithVehicles) {
+      const rev = this.toNumber(s.final_amount ?? s.selling_price ?? 0);
+      const cost = this.toNumber(s.vehicles?.purchase_price ?? 0);
+      totalRevenue += rev;
+      totalCost += cost;
+
+      const pDate = s.vehicles?.purchase_date || s.vehicles?.created_at;
+      if (pDate && s.sale_date) {
+        const days = Math.max(0, Math.floor((new Date(s.sale_date).getTime() - new Date(pDate).getTime()) / (1000 * 60 * 60 * 24)));
+        totalDaysToSell += days;
+        daysToSellCount++;
+      }
+    }
+
+    const totalSales = salesWithVehicles.length;
+    const grossProfit = totalRevenue - totalCost;
+    const avgDaysToSell = daysToSellCount > 0 ? Math.round(totalDaysToSell / daysToSellCount) : null;
+    const averageSellingPrice = totalSales > 0 ? totalRevenue / totalSales : 0;
+
+    // Available Inventory Value for the branch / dealership
+    const availableVehicles = await this.prisma.vehicles.findMany({
+      where: {
+        status: 'Available',
+        ...this.buildBranchFilter(query.branchId),
+        ...(query.vehicleId ? { vehicle_id: Number(query.vehicleId) } : {}),
+      },
+      select: {
+        price: true,
+      },
+    });
+
+    const inventoryValue = availableVehicles.reduce((sum, v) => sum + this.toNumber(v.price || 0), 0);
+    const currentInventory = availableVehicles.length;
+
+    // Total registered vehicles count matching branch
+    const totalVehicles = await this.prisma.vehicles.count({
       where: {
         ...this.buildBranchFilter(query.branchId),
         ...(query.vehicleId ? { vehicle_id: Number(query.vehicleId) } : {}),
@@ -103,17 +149,36 @@ export class BiService {
       where: this.buildBranchFilter(query.branchId),
     });
 
-    const totalRevenue = this.toNumber(salesAggregate._sum?.final_amount ?? salesAggregate._sum?.selling_price ?? 0);
-    const totalSales = Number(salesAggregate._count?.sale_id ?? 0);
-    const averageSellingPrice = totalSales > 0 ? totalRevenue / totalSales : 0;
+    // Branch Leads & Conversion
+    const branchIdNum = Number(query.branchId);
+    const leadsCount = await this.prisma.leads.count({
+      where: {
+        ...this.buildDateFilter('inquiry_date', query),
+        ...(branchIdNum > 0
+          ? {
+              OR: [
+                { employees: { branch_id: branchIdNum } },
+                { vehicles: { branch_id: branchIdNum } },
+              ],
+            }
+          : {}),
+      },
+    });
+
+    const leadConversion = leadsCount > 0 ? Number(((totalSales / leadsCount) * 100).toFixed(1)) : 0;
 
     return {
       totalSales,
       totalRevenue,
-      totalVehicles: vehicleCount,
-      currentInventory: vehicleCount,
+      grossProfit,
+      inventoryValue,
+      avgDaysToSell,
+      leadConversion,
+      totalVehicles,
+      currentInventory,
       averageSellingPrice,
       branchCount,
+      leadsCount,
       filters: {
         branchId: query.branchId ?? null,
         vehicleId: query.vehicleId ?? null,
@@ -203,6 +268,7 @@ export class BiService {
         price: true,
         purchase_price: true,
         status: true,
+        purchase_date: true,
         created_at: true,
         branch_id: true,
       },
@@ -219,20 +285,20 @@ export class BiService {
       soldVehicles: vehicles.filter((vehicle) => (vehicle.status ?? '').toLowerCase() === 'sold').length,
       availableVehicles: vehicles.filter((vehicle) => (vehicle.status ?? '').toLowerCase() === 'available').length,
       ageing: {
-        '0-30': vehicles.filter((vehicle) => this.vehicleAgeInDays(vehicle.created_at) <= 30).length,
+        '0-30': vehicles.filter((vehicle) => this.vehicleAgeInDays(vehicle.purchase_date || vehicle.created_at) <= 30).length,
         '31-60': vehicles.filter((vehicle) => {
-          const days = this.vehicleAgeInDays(vehicle.created_at);
+          const days = this.vehicleAgeInDays(vehicle.purchase_date || vehicle.created_at);
           return days > 30 && days <= 60;
         }).length,
         '61-90': vehicles.filter((vehicle) => {
-          const days = this.vehicleAgeInDays(vehicle.created_at);
+          const days = this.vehicleAgeInDays(vehicle.purchase_date || vehicle.created_at);
           return days > 60 && days <= 90;
         }).length,
         '91-120': vehicles.filter((vehicle) => {
-          const days = this.vehicleAgeInDays(vehicle.created_at);
+          const days = this.vehicleAgeInDays(vehicle.purchase_date || vehicle.created_at);
           return days > 90 && days <= 120;
         }).length,
-        '120+': vehicles.filter((vehicle) => this.vehicleAgeInDays(vehicle.created_at) > 120).length,
+        '120+': vehicles.filter((vehicle) => this.vehicleAgeInDays(vehicle.purchase_date || vehicle.created_at) > 120).length,
       },
     };
   }
@@ -292,9 +358,17 @@ export class BiService {
         sale_id: true,
         final_amount: true,
         selling_price: true,
+        sale_date: true,
         branch_id: true,
         branches: {
           select: { branch_name: true },
+        },
+        vehicles: {
+          select: {
+            purchase_price: true,
+            purchase_date: true,
+            created_at: true,
+          },
         },
       },
     })) ?? [];
@@ -305,13 +379,27 @@ export class BiService {
 
     const branchRevenue = new Map<string, number>();
     const branchSales = new Map<string, number>();
+    let grossProfit = 0;
+    let totalDaysToSell = 0;
+    let daysToSellCount = 0;
 
     for (const sale of allSales) {
       const branchName = sale.branches?.branch_name ?? 'Unknown';
       const value = this.toNumber(sale.final_amount ?? sale.selling_price ?? 0);
+      const cost = this.toNumber(sale.vehicles?.purchase_price ?? 0);
+      grossProfit += (value - cost);
+
+      const pDate = sale.vehicles?.purchase_date || sale.vehicles?.created_at;
+      if (pDate && sale.sale_date) {
+        totalDaysToSell += Math.max(0, Math.floor((new Date(sale.sale_date).getTime() - new Date(pDate).getTime()) / (1000 * 60 * 60 * 24)));
+        daysToSellCount++;
+      }
+
       branchRevenue.set(branchName, (branchRevenue.get(branchName) ?? 0) + value);
       branchSales.set(branchName, (branchSales.get(branchName) ?? 0) + 1);
     }
+
+    const avgDaysToSell = daysToSellCount > 0 ? Math.round(totalDaysToSell / daysToSellCount) : null;
 
     const bestBranch = [...branchRevenue.entries()].sort((a, b) => b[1] - a[1])[0];
 
@@ -358,6 +446,8 @@ export class BiService {
     return {
       totalSales,
       totalRevenue,
+      grossProfit,
+      avgDaysToSell,
       currentInventory: inventorySummary.totalVehicles,
       averageSellingPrice,
       leadConversion: Number(leadConversion.toFixed(2)),
@@ -442,10 +532,37 @@ export class BiService {
   async getTopVehicles(query: Partial<BiQueryDto> = {}, limit = 5) {
     const rows = (await (this.prisma.sales as any).findMany({
       where: { ...this.buildBranchFilter(query.branchId), ...this.buildVehicleFilter(query.vehicleId), ...this.buildDateFilter('sale_date', query) },
-      select: { final_amount: true, selling_price: true, vehicles: { select: { make: true, model: true } } },
+      select: {
+        final_amount: true,
+        selling_price: true,
+        vehicles: {
+          select: {
+            vehicle_id: true,
+            make: true,
+            model: true,
+            image_url: true,
+            registration_number: true,
+          },
+        },
+      },
     })) ?? [];
     const grouped = new Map<string, any>();
-    for (const row of rows) { const name = `${row.vehicles?.make ?? 'Unknown'} ${row.vehicles?.model ?? ''}`.trim(); const item = grouped.get(name) ?? { vehicle: name, sales: 0, revenue: 0 }; item.sales += 1; item.revenue += this.toNumber(row.final_amount ?? row.selling_price); grouped.set(name, item); }
+    for (const row of rows) {
+      const name = `${row.vehicles?.make ?? 'Unknown'} ${row.vehicles?.model ?? ''}`.trim();
+      const item = grouped.get(name) ?? {
+        vehicle_id: row.vehicles?.vehicle_id,
+        vehicle: name,
+        make: row.vehicles?.make,
+        model: row.vehicles?.model,
+        image_url: row.vehicles?.image_url,
+        registration_number: row.vehicles?.registration_number,
+        sales: 0,
+        revenue: 0,
+      };
+      item.sales += 1;
+      item.revenue += this.toNumber(row.final_amount ?? row.selling_price);
+      grouped.set(name, item);
+    }
     return [...grouped.values()].sort((a, b) => b.revenue - a.revenue).slice(0, Math.max(1, Math.min(50, Number(limit) || 5)));
   }
 
@@ -459,18 +576,56 @@ export class BiService {
   async getFunnel(query: Partial<BiQueryDto> = {}) {
     const dateFilter = this.buildDateFilter('created_at', query);
     const branchFilter = Number(query.branchId) > 0 ? { employees: { branch_id: Number(query.branchId) } } : {};
-    const [leads, testDrives, qualified] = await Promise.all([
+    const [leads, testDrives, qualifiedLeads, sales] = await Promise.all([
       this.safeCount(() => this.prisma.leads.count({ where: { ...dateFilter, ...branchFilter } })),
       this.safeCount(() => this.prisma.test_drives.count({ where: { ...dateFilter, ...branchFilter } })),
+      this.safeCount(() => this.prisma.leads.count({
+        where: {
+          ...dateFilter,
+          ...branchFilter,
+          status: { in: ['Qualified', 'Converted', 'Contacted'] },
+        },
+      })),
       this.safeCount(() => this.prisma.sales.count({ where: { ...dateFilter, ...this.buildBranchFilter(query.branchId), ...this.buildVehicleFilter(query.vehicleId) } })),
     ]);
-    return { assumption: 'Leads and test drives use the existing operational entities; qualified means a recorded sale.', stages: [{ label: 'Leads', count: leads }, { label: 'Test Drives', count: testDrives }, { label: 'Qualified / Won', count: qualified }] };
+
+    const conversionRate = leads > 0 ? Number(((sales / leads) * 100).toFixed(1)) : 0;
+
+    return {
+      conversionRate,
+      stages: [
+        { label: 'Leads', count: leads },
+        { label: 'Test Drives', count: testDrives },
+        { label: 'Qualified', count: Math.max(qualifiedLeads, sales) },
+        { label: 'Sales', count: sales },
+      ],
+    };
   }
 
   async getInventoryAging(query: Partial<BiQueryDto> = {}) {
-    const vehicles = (await this.prisma.vehicles.findMany({ where: { ...this.buildBranchFilter(query.branchId), ...(query.vehicleId ? { vehicle_id: Number(query.vehicleId) } : {}), status: 'Available' }, select: { price: true, created_at: true } })) ?? [];
-    const buckets = [{ label: '0-30', count: 0, value: 0 }, { label: '31-60', count: 0, value: 0 }, { label: '61-90', count: 0, value: 0 }, { label: '91-120', count: 0, value: 0 }, { label: '120+', count: 0, value: 0 }];
-    for (const vehicle of vehicles) { const age = this.vehicleAgeInDays(vehicle.created_at); const bucket = buckets[age <= 30 ? 0 : age <= 60 ? 1 : age <= 90 ? 2 : age <= 120 ? 3 : 4]; bucket.count += 1; bucket.value += this.toNumber(vehicle.price); }
+    const vehicles = (await this.prisma.vehicles.findMany({
+      where: {
+        ...this.buildBranchFilter(query.branchId),
+        ...(query.vehicleId ? { vehicle_id: Number(query.vehicleId) } : {}),
+        status: 'Available',
+      },
+      select: { price: true, purchase_date: true, created_at: true },
+    })) ?? [];
+
+    const buckets = [
+      { label: '0 - 30 Days', count: 0, value: 0, color: '#3b82f6' },
+      { label: '31 - 60 Days', count: 0, value: 0, color: '#10b981' },
+      { label: '61 - 90 Days', count: 0, value: 0, color: '#f59e0b' },
+      { label: '91 - 120 Days', count: 0, value: 0, color: '#ef4444' },
+      { label: '120+ Days', count: 0, value: 0, color: '#b91c1c' },
+    ];
+
+    for (const vehicle of vehicles) {
+      const age = this.vehicleAgeInDays(vehicle.purchase_date || vehicle.created_at);
+      const bucket = buckets[age <= 30 ? 0 : age <= 60 ? 1 : age <= 90 ? 2 : age <= 120 ? 3 : 4];
+      bucket.count += 1;
+      bucket.value += this.toNumber(vehicle.price);
+    }
     return buckets;
   }
 

@@ -11,7 +11,7 @@ export class EmployeesService {
     const where: Prisma.employeesWhereInput = {};
 
     if (query?.branchId) where.branch_id = Number(query.branchId);
-    if (query?.role) where.role = { equals: query.role, mode: 'insensitive' };
+    if (query?.role) where.role = { equals: query.role.toUpperCase() as any };
 
     if (query?.search) {
       where.OR = [

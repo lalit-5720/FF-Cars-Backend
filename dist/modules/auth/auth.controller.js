@@ -43,7 +43,7 @@ let AuthController = class AuthController {
             const payload = await this.jwtService.verifyAsync(refreshToken, {
                 secret: this.configService.get('JWT_REFRESH_SECRET'),
             });
-            return this.authService.refreshTokens(payload.sub, payload.email, payload.role);
+            return this.authService.refreshTokens(payload.sub, payload.email, payload.role, payload.branch_id ?? null);
         }
         catch (err) {
             throw new common_1.UnauthorizedException('Invalid refresh token');

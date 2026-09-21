@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -46,12 +46,13 @@ async function main() {
   // System Admin (Founder)
   await prisma.employees.upsert({
     where: { employee_id: 100 },
-    update: { password: hashedPassword, role: 'System Administrator' },
+    update: { password: hashedPassword, role: Role.SYSTEM_ADMIN, job_title: 'System Administrator' },
     create: {
       employee_id: 100,
       first_name: 'System',
       last_name: 'Administrator',
-      role: 'System Administrator',
+      role: Role.SYSTEM_ADMIN,
+      job_title: 'System Administrator',
       email: 'admin@carrevive.in',
       phone: '9840000000',
       password: hashedPassword,
@@ -63,11 +64,12 @@ async function main() {
   // Branch Manager - Anna Nagar
   await prisma.employees.upsert({
     where: { employee_id: 1 },
-    update: { password: hashedPassword, role: 'Branch Manager' },
+    update: { password: hashedPassword, role: Role.BRANCH_MANAGER, job_title: 'Branch Manager' },
     create: {
       first_name: 'Rajkumar',
       last_name: 'Swaminathan',
-      role: 'Branch Manager',
+      role: Role.BRANCH_MANAGER,
+      job_title: 'Branch Manager',
       email: 'rajkumar.swaminathan@carrevive.in',
       phone: '9840123456',
       password: hashedPassword,
@@ -79,12 +81,13 @@ async function main() {
   // Branch Manager - Velachery
   await prisma.employees.upsert({
     where: { employee_id: 3 },
-    update: { password: hashedPassword, role: 'Branch Manager' },
+    update: { password: hashedPassword, role: Role.BRANCH_MANAGER, job_title: 'Branch Manager' },
     create: {
       employee_id: 3,
       first_name: 'Dinesh',
       last_name: 'Palanisamy',
-      role: 'Branch Manager',
+      role: Role.BRANCH_MANAGER,
+      job_title: 'Branch Manager',
       email: 'manager.velachery@carrevive.in',
       phone: '9840234567',
       password: hashedPassword,
@@ -96,11 +99,12 @@ async function main() {
   // Sales Executive - Anna Nagar
   await prisma.employees.upsert({
     where: { employee_id: 2 },
-    update: { password: hashedPassword, role: 'Sales Executive' },
+    update: { password: hashedPassword, role: Role.SALES_EXECUTIVE, job_title: 'Sales Executive' },
     create: {
       first_name: 'Ganesh',
       last_name: 'Chettiar',
-      role: 'Sales Executive',
+      role: Role.SALES_EXECUTIVE,
+      job_title: 'Sales Executive',
       email: 'ganesh.chettiar@carrevive.in',
       phone: '9840123457',
       password: hashedPassword,

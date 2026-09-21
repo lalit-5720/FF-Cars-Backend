@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, UseGuards, NotFoundException } from '@nestjs/common';
 import { SalesService } from './sales.service';
 import { Prisma } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -12,8 +12,14 @@ import { CurrentUser, UserPayload } from '../../common/decorators/current-user.d
 export class SalesController {
   constructor(private readonly salesService: SalesService) {}
 
+  @Get('my-purchases')
+  @Roles(Role.CUSTOMER, Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER, Role.SALES_EXECUTIVE)
+  getMyPurchases(@CurrentUser() user: UserPayload) {
+    return this.salesService.findAll({ customerId: user.id });
+  }
+
   @Get()
-  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER, Role.SALES_EXECUTIVE)
+  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER, Role.SALES_EXECUTIVE, Role.CUSTOMER)
   findAll(
     @CurrentUser() user: UserPayload,
     @Query('branchId') branchId?: number,
@@ -22,6 +28,9 @@ export class SalesController {
     @Query('employeeId') employeeId?: number,
     @Query('customerId') customerId?: number,
   ) {
+    if (user.role === Role.CUSTOMER) {
+      return this.salesService.findAll({ customerId: user.id });
+    }
     const effectiveBranchId = user.role === Role.SYSTEM_ADMIN ? branchId : (user.branch_id || branchId);
     const effectiveEmployeeId = user.role === Role.SALES_EXECUTIVE ? user.id : employeeId;
     return this.salesService.findAll({
@@ -40,9 +49,13 @@ export class SalesController {
   }
 
   @Get(':id')
-  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER, Role.SALES_EXECUTIVE)
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.salesService.findOne(id);
+  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER, Role.SALES_EXECUTIVE, Role.CUSTOMER)
+  async findOne(@CurrentUser() user: UserPayload, @Param('id', ParseIntPipe) id: number) {
+    const sale = await this.salesService.findOne(id);
+    if (user.role === Role.CUSTOMER && sale.customer_id !== user.id) {
+      throw new NotFoundException('Sale not found');
+    }
+    return sale;
   }
 
   @Post()

@@ -8,6 +8,7 @@ import { BiQueryDto } from '../bi/bi.dto';
 import { BiService } from '../bi/bi.service';
 import { DecisionScoreService } from './decision-score.service';
 import { ProcurementBiService } from './procurement-bi.service';
+import { LiveMarketService } from './live-market.service';
 
 @Controller('analytics')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -17,6 +18,7 @@ export class AnalyticsController {
     private readonly biService: BiService,
     private readonly decisionScoreService: DecisionScoreService,
     private readonly procurementBiService: ProcurementBiService,
+    private readonly liveMarketService: LiveMarketService,
   ) {}
 
   @Get('procurement-intelligence')
@@ -42,7 +44,7 @@ export class AnalyticsController {
     return this.procurementBiService.updatePurchaseOrderStatus(Number(id), status);
   }
 
-  // Feature 2: AI Dynamic Repricing
+  // Feature 2: Rules-Based Aging Repricing
   @Get('repricing-suggestions')
   getRepricingSuggestions(@CurrentUser() user: UserPayload, @Query('branchId') branchId?: number) {
     const effectiveBranchId = user.role === Role.SYSTEM_ADMIN ? branchId : (user.branch_id || branchId);
@@ -162,7 +164,40 @@ export class AnalyticsController {
   getReviewSentiment() {
     return this.biService.getReviewSentiment();
   }
+
+  // Feature 8: Dynamic Variant-Aware Valuation & Catalog
+  @Get('valuation/catalog')
+  getValuationCatalog() {
+    return this.procurementBiService.getValuationCatalog();
+  }
+
+  @Post('valuation/calculate')
+  calculateValuation(@Body() body: any) {
+    return this.procurementBiService.calculateServerValuation(body);
+  }
+
+  // Feature 9: Live Market Data & Dynamic Benchmark Lookup
+  @Get('valuation/live-market')
+  getLiveMarketBenchmark(
+    @Query('make') make: string,
+    @Query('model') model: string,
+    @Query('variantTier') variantTier?: 'BASE' | 'MID' | 'TOP_END',
+    @Query('year') year?: number,
+    @Query('fuelType') fuelType?: string,
+    @Query('transmission') transmission?: string,
+  ) {
+    return this.liveMarketService.getLiveMarketBenchmark({
+      make,
+      model,
+      variantTier,
+      manufactureYear: year,
+      fuelType,
+      transmission,
+    });
+  }
 }
 
 function queryBranch(b?: number) { return b; }
+
+
 
