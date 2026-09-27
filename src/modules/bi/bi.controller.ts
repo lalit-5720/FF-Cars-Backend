@@ -47,6 +47,12 @@ export class BiController {
     return this.biService.getOverview({ ...query, branchId: effectiveBranchId });
   }
 
+  @Get('gross-profit-breakdown')
+  getGrossProfitBreakdown(@CurrentUser() user: UserPayload, @Query() query: BiQueryDto) {
+    const effectiveBranchId = user.role === Role.SYSTEM_ADMIN ? query.branchId : (user.branch_id || query.branchId);
+    return this.biService.getGrossProfitBreakdown({ ...query, branchId: effectiveBranchId });
+  }
+
   @Get('sales')
   getSalesSummary(@CurrentUser() user: UserPayload, @Query() query: BiQueryDto) {
     const effectiveBranchId = user.role === Role.SYSTEM_ADMIN ? query.branchId : (user.branch_id || query.branchId);

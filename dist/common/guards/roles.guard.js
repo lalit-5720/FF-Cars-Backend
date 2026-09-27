@@ -13,6 +13,7 @@ exports.RolesGuard = void 0;
 const common_1 = require("@nestjs/common");
 const core_1 = require("@nestjs/core");
 const roles_decorator_1 = require("../decorators/roles.decorator");
+const role_enum_1 = require("../enums/role.enum");
 let RolesGuard = class RolesGuard {
     reflector;
     constructor(reflector) {
@@ -31,6 +32,9 @@ let RolesGuard = class RolesGuard {
             return false;
         }
         const userRoles = Array.isArray(user.role) ? user.role : [user.role];
+        if (userRoles.includes('SYSTEM_ADMIN') || userRoles.includes(role_enum_1.Role.SYSTEM_ADMIN)) {
+            return true;
+        }
         return requiredRoles.some((role) => userRoles.includes(role));
     }
 };

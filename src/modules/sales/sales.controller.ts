@@ -48,6 +48,12 @@ export class SalesController {
     return this.salesService.getRevenueStats();
   }
 
+  @Get('revenue-breakdown')
+  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER, Role.SALES_EXECUTIVE)
+  getRevenueBreakdown() {
+    return this.salesService.getRevenueBreakdown();
+  }
+
   @Get(':id')
   @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER, Role.SALES_EXECUTIVE, Role.CUSTOMER)
   async findOne(@CurrentUser() user: UserPayload, @Param('id', ParseIntPipe) id: number) {
@@ -77,6 +83,30 @@ export class SalesController {
   @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.salesService.remove(id);
+  }
+
+  @Post(':id/mark-paid')
+  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER, Role.SALES_EXECUTIVE)
+  markFullPaid(@Param('id', ParseIntPipe) id: number) {
+    return this.salesService.markFullPaid(id);
+  }
+
+  @Post(':id/approve-loan')
+  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER, Role.SALES_EXECUTIVE)
+  approveLoan(@Param('id', ParseIntPipe) id: number) {
+    return this.salesService.approveLoan(id);
+  }
+
+  @Post(':id/cancel')
+  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER, Role.SALES_EXECUTIVE)
+  cancelSale(@Param('id', ParseIntPipe) id: number, @Body('reason') reason?: string) {
+    return this.salesService.cancelSale(id, reason);
+  }
+
+  @Post(':id/move-to-delivery')
+  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER, Role.SALES_EXECUTIVE)
+  moveToDelivery(@Param('id', ParseIntPipe) id: number) {
+    return this.salesService.moveToDelivery(id);
   }
 }
 

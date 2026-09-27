@@ -20,6 +20,9 @@ export class RolesGuard implements CanActivate {
       return false;
     }
     const userRoles = Array.isArray(user.role) ? user.role : [user.role];
+    if (userRoles.includes('SYSTEM_ADMIN') || userRoles.includes(Role.SYSTEM_ADMIN)) {
+      return true;
+    }
     return requiredRoles.some((role) => userRoles.includes(role));
   }
 }

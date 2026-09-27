@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, UseGuards, Request } from '@nestjs/common';
 import { VehiclesService } from './vehicles.service';
 import { Prisma } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -48,7 +48,11 @@ export class VehiclesController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER)
-  create(@Body() data: Prisma.vehiclesCreateInput) {
+  create(@Request() req: any, @Body() data: any) {
+    // Managers only add vehicles to their assigned branch; admins have all access
+    if (req.user?.role === Role.BRANCH_MANAGER && req.user?.branch_id) {
+      data.branch_id = req.user.branch_id;
+    }
     return this.vehiclesService.create(data);
   }
 
@@ -60,6 +64,16 @@ export class VehiclesController {
     @Body() data: Prisma.vehiclesUpdateInput,
   ) {
     return this.vehiclesService.update(id, data);
+  }
+
+  @Patch(':id/inspection')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER)
+  updateInspection(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('inspectionReport') inspectionReport: any,
+  ) {
+    return this.vehiclesService.updateInspectionReport(id, inspectionReport);
   }
 
   @Delete(':id')

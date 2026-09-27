@@ -15,8 +15,12 @@ import { UploadModule } from './modules/upload/upload.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { BiModule } from './modules/bi/bi.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { RolesModule } from './modules/roles/roles.module';
 import { EventsModule } from './common/gateways/events.module';
 import { CacheModule } from './common/services/cache.module';
+
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 @Module({
   imports: [
@@ -46,7 +50,10 @@ import { CacheModule } from './common/services/cache.module';
     ReviewsModule,
     BiModule,
     AnalyticsModule,
+    RolesModule,
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}
 

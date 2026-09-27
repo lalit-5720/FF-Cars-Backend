@@ -9,6 +9,7 @@ import { BiService } from '../bi/bi.service';
 import { DecisionScoreService } from './decision-score.service';
 import { ProcurementBiService } from './procurement-bi.service';
 import { LiveMarketService } from './live-market.service';
+import { SalesExecutiveAnalyticsService } from './sales-executive-analytics.service';
 
 @Controller('analytics')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -19,7 +20,15 @@ export class AnalyticsController {
     private readonly decisionScoreService: DecisionScoreService,
     private readonly procurementBiService: ProcurementBiService,
     private readonly liveMarketService: LiveMarketService,
+    private readonly salesExecutiveAnalyticsService: SalesExecutiveAnalyticsService,
   ) {}
+
+  @Get('sales-executive/overview')
+  @Roles(Role.SALES_EXECUTIVE, Role.BRANCH_MANAGER, Role.SYSTEM_ADMIN)
+  getSalesExecutiveOverview(@CurrentUser() user: UserPayload, @Query('employeeId') employeeId?: number) {
+    const targetId = user.role === Role.SALES_EXECUTIVE ? user.id : (employeeId ? Number(employeeId) : user.id);
+    return this.salesExecutiveAnalyticsService.getSalesExecutiveDashboard(targetId);
+  }
 
   @Get('procurement-intelligence')
   getProcurementIntelligence(@CurrentUser() user: UserPayload, @Query('branchId') branchId?: number) {

@@ -5,6 +5,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
 
+import { CurrentUser, UserPayload } from '../../common/decorators/current-user.decorator';
+
 @Controller('reviews')
 export class ReviewsController {
   constructor(private readonly reviewsService: ReviewsService) {}
@@ -12,8 +14,12 @@ export class ReviewsController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.CUSTOMER, Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER)
-  create(@Body() data: { customer_id?: number; customerId?: number; vehicle_id?: number; vehicleId?: number; rating?: number; comment: string }) {
-    return this.reviewsService.create(data);
+  create(
+    @CurrentUser() user: UserPayload,
+    @Body() data: { customer_id?: number; customerId?: number; vehicle_id?: number; vehicleId?: number; rating?: number; comment: string },
+  ) {
+    const effectiveCustomerId = user.role === Role.CUSTOMER ? user.id : (data.customer_id || data.customerId || user.id);
+    return this.reviewsService.create({ ...data, customer_id: effectiveCustomerId });
   }
 
   @Get()

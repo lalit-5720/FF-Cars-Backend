@@ -5,20 +5,41 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
+import { CurrentUser, UserPayload } from '../../common/decorators/current-user.decorator';
 
 @Controller('leads')
 export class LeadsController {
   constructor(private readonly leadsService: LeadsService) {}
 
+  @Get('my-stats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SALES_EXECUTIVE, Role.BRANCH_MANAGER, Role.SYSTEM_ADMIN)
+  getMyStats(@CurrentUser() user: UserPayload, @Query('employeeId') employeeId?: number) {
+    const targetId = user.role === Role.SALES_EXECUTIVE ? user.id : (employeeId ? Number(employeeId) : user.id);
+    return this.leadsService.getEmployeeLeadStats(targetId);
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SYSTEM_ADMIN, Role.BRANCH_MANAGER, Role.SALES_EXECUTIVE)
   findAll(
+    @CurrentUser() user: UserPayload,
     @Query('status') status?: string,
     @Query('interestLevel') interestLevel?: string,
     @Query('source') source?: string,
+    @Query('employeeId') employeeId?: number,
   ) {
-    return this.leadsService.findAll({ status, interestLevel, source });
+    // If SALES_EXECUTIVE, strictly enforce scoping to their assigned leads only!
+    const effectiveEmployeeId = user.role === Role.SALES_EXECUTIVE ? user.id : employeeId;
+    const effectiveBranchId = user.role === Role.BRANCH_MANAGER ? (user.branch_id ?? undefined) : undefined;
+
+    return this.leadsService.findAll({
+      status,
+      interestLevel,
+      source,
+      employeeId: effectiveEmployeeId,
+      branchId: effectiveBranchId,
+    });
   }
 
   @Get(':id')

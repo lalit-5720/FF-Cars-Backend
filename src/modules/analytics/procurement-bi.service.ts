@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DecisionScoreService } from './decision-score.service';
 
 export interface ManufactureYearDemand {
   yearRange: string;
@@ -98,7 +99,10 @@ const purchaseOrdersStore: Array<any> = [
 
 @Injectable()
 export class ProcurementBiService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly decisionScoreService: DecisionScoreService,
+  ) {}
 
   private toNumber(val: any): number {
     const num = Number(val ?? 0);
@@ -303,65 +307,102 @@ export class ProcurementBiService {
       },
     );
 
-    const buyingAlerts: BuyingRecommendationAlert[] = [];
+    // Calculate dynamic brand and model decision scores directly from database
+    const decisionScoreData = await this.decisionScoreService.calculateDecisionScore(branchId);
 
     const topYear = [...manufactureYearDemand].sort((a, b) => b.demandScore - a.demandScore)[0];
-    if (topYear && topYear.demandScore > 0) {
-      buyingAlerts.push({
-        id: 'buy-year-1',
-        title: `Procure ${topYear.yearRange} Manufactured Vehicles`,
-        manufactureYear: topYear.yearRange,
-        priceBand: '₹20L - ₹40L',
-        vehicleCategory: 'SUV / Executive Sedan',
-        evidence: `Customer preference score is highest for ${topYear.yearRange} models (${topYear.leadsCount} leads & ${topYear.testDrivesCount} test drives with only ${topYear.availableStock} in stock).`,
-        action: 'BUY_NOW',
-        priority: 'HIGH',
-      });
-    }
-
     const topPriceBand = [...priceBandPreferences].sort((a, b) => b.preferencePercent - a.preferencePercent)[0];
-    if (topPriceBand) {
-      buyingAlerts.push({
-        id: 'buy-price-1',
-        title: `Target Procurement in ${topPriceBand.priceBand} Band`,
+
+    const dynamicBuyingAlerts: any[] = [];
+
+    // 1. Dynamic Model-level buying recommendation based on live database
+    const strongBuyModel = decisionScoreData.vehicle_decision_scores.find(
+      (v) => (v.recommendation === 'STRONG_BUY' || v.recommendation === 'BUY') && v.inStock === 0,
+    ) || decisionScoreData.vehicle_decision_scores[0];
+
+    if (strongBuyModel) {
+      dynamicBuyingAlerts.push({
+        id: `buy-model-${strongBuyModel.vehicle_key}`,
+        title: `Acquire ${strongBuyModel.displayName}`,
         manufactureYear: '2021 - 2024',
-        priceBand: topPriceBand.priceBand,
-        vehicleCategory: 'Mid & Premium Segment',
-        evidence: `${topPriceBand.preferencePercent}% of all customer inquiries and test drives fall into the ${topPriceBand.priceBand} budget category.`,
+        priceBand: `Under ₹${Math.round(strongBuyModel.avgSellingPrice / 100000)}L`,
+        vehicleCategory: `${strongBuyModel.make} Model Line`,
+        evidence: `Customer inquiries (${strongBuyModel.leadsCount} leads, ${strongBuyModel.testDrivesCount} test drives) with ${strongBuyModel.inStock} units in stock. Sells in ~${strongBuyModel.avgDaysToSell} days with ${strongBuyModel.grossMarginPct}% gross margin. Recommended Buy Ceiling: ₹${strongBuyModel.recommendedBuyCeiling.toLocaleString('en-IN')}.`,
         action: 'BUY_NOW',
         priority: 'HIGH',
+        targetModel: strongBuyModel.displayName,
+        recommendedBuyCeiling: strongBuyModel.recommendedBuyCeiling,
       });
     }
 
-    const overstockedYear = manufactureYearDemand.find((y) => y.recommendation === 'HOLD_OVERSTOCKED');
-    if (overstockedYear) {
-      buyingAlerts.push({
-        id: 'hold-year-1',
-        title: `Hold Procurement on ${overstockedYear.yearRange} Models`,
-        manufactureYear: overstockedYear.yearRange,
-        priceBand: 'All Bands',
-        vehicleCategory: 'Overstocked Category',
-        evidence: `${overstockedYear.availableStock} vehicles in stock with relatively low customer lead conversion (${overstockedYear.leadsCount} leads).`,
+    // 2. Dynamic Model-level caution/hold alert for slow moving models
+    const slowMovingModel = decisionScoreData.vehicle_decision_scores.find(
+      (v) => v.recommendation === 'AVOID' || (v.inStock >= 2 && v.avgDaysToSell > 40),
+    );
+
+    if (slowMovingModel) {
+      dynamicBuyingAlerts.push({
+        id: `hold-model-${slowMovingModel.vehicle_key}`,
+        title: `Hold Buying ${slowMovingModel.displayName}`,
+        manufactureYear: 'All Years',
+        priceBand: `₹${Math.round(slowMovingModel.avgAcquisitionCost / 100000)}L Tier`,
+        vehicleCategory: `${slowMovingModel.make} Model Line`,
+        evidence: `${slowMovingModel.inStock} units sitting on lot taking ~${slowMovingModel.avgDaysToSell} days to sell. Pause inventory acquisition to prevent capital lockup.`,
         action: 'HOLD_PROCUREMENT',
         priority: 'MEDIUM',
+        targetModel: slowMovingModel.displayName,
       });
     } else {
-      buyingAlerts.push({
-        id: 'reallocate-1',
-        title: 'Optimize Branch Stock Allocation',
-        manufactureYear: '2022 - 2023',
-        priceBand: '₹35L - ₹50L',
-        vehicleCategory: 'Luxury Sedan',
-        evidence: 'High test drive demand at Anna Nagar branch vs unallocated inventory at Velachery branch.',
-        action: 'REALLOCATE_BRANCH',
-        priority: 'MEDIUM',
+      const overstockedYear = manufactureYearDemand.find((y) => y.recommendation === 'HOLD_OVERSTOCKED');
+      if (overstockedYear) {
+        dynamicBuyingAlerts.push({
+          id: 'hold-year-1',
+          title: `Hold Procurement on ${overstockedYear.yearRange} Models`,
+          manufactureYear: overstockedYear.yearRange,
+          priceBand: 'All Bands',
+          vehicleCategory: 'Overstocked Category',
+          evidence: `${overstockedYear.availableStock} vehicles in stock with relatively low customer lead conversion (${overstockedYear.leadsCount} leads).`,
+          action: 'HOLD_PROCUREMENT',
+          priority: 'MEDIUM',
+        });
+      }
+    }
+
+    // 3. Dynamic Brand-level buying recommendation
+    const topBrand = decisionScoreData.brand_decision_scores[0];
+    if (topBrand && topBrand.recommendation === 'STRONG_BUY') {
+      dynamicBuyingAlerts.push({
+        id: `buy-brand-${topBrand.brand}`,
+        title: `Priority Brand: ${topBrand.brand}`,
+        manufactureYear: '2020 - 2024',
+        priceBand: `Avg ₹${Math.round(topBrand.avgAcquisitionCost / 100000)}L`,
+        vehicleCategory: `${topBrand.brand} Portfolio`,
+        evidence: `${topBrand.brand} is the dealership's top-performing brand (${topBrand.grossMarginPct}% gross margin, ${topBrand.avgDaysToSell}-day turnover, ${topBrand.totalSold} sold, ${topBrand.inStock} on lot). Recommended Buy Ceiling: ₹${topBrand.recommendedBuyCeiling.toLocaleString('en-IN')}.`,
+        action: 'BUY_NOW',
+        priority: 'HIGH',
+        targetBrand: topBrand.brand,
+        recommendedBuyCeiling: topBrand.recommendedBuyCeiling,
       });
     }
 
     return {
       manufactureYearDemand,
       priceBandPreferences,
-      buyingAlerts,
+      buyingAlerts: dynamicBuyingAlerts.length > 0 ? dynamicBuyingAlerts : [
+        {
+          id: 'buy-default-1',
+          title: 'Stock Replenishment Advisory',
+          manufactureYear: '2021 - 2024',
+          priceBand: '₹15L - ₹30L',
+          vehicleCategory: 'Mid-size SUVs',
+          evidence: 'Active customer demand indicates fast inventory turnover for late-model compact SUVs.',
+          action: 'BUY_NOW',
+          priority: 'HIGH',
+        },
+      ],
+      brand_decision_scores: decisionScoreData.brand_decision_scores,
+      vehicle_decision_scores: decisionScoreData.vehicle_decision_scores,
+      formula_breakdown: decisionScoreData.formula_breakdown,
       summary: {
         totalLeadsAnalyzed: leads.length,
         totalTestDrivesAnalyzed: testDrives.length,
@@ -369,6 +410,10 @@ export class ProcurementBiService {
         activeStockCount: vehicles.filter((v) => (v.status || '').toLowerCase() === 'available').length,
         preferredManufactureYear: topYear?.yearRange || '2021 - 2022',
         preferredPriceBand: topPriceBand?.priceBand || '₹20L - ₹35L',
+        topRecommendedBrand: decisionScoreData.brand_decision_scores[0]?.brand || 'Maruti Suzuki',
+        topRecommendedModel: decisionScoreData.vehicle_decision_scores[0]?.displayName || 'Swift VXI',
+        totalBrandsAnalyzed: decisionScoreData.brand_decision_scores.length,
+        totalModelsAnalyzed: decisionScoreData.vehicle_decision_scores.length,
       },
     };
   }

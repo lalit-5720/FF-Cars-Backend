@@ -17,12 +17,25 @@ export class DeliveriesService {
     return 'Pending';
   }
 
-  async findAll(query?: { saleId?: number; deliveryStatus?: string; deliveredBy?: number }) {
+  async findAll(query?: { saleId?: number; deliveryStatus?: string; deliveredBy?: number; employeeId?: number; branchId?: number }) {
     const where: Prisma.deliveriesWhereInput = {};
 
     if (query?.saleId) where.sale_id = Number(query.saleId);
     if (query?.deliveryStatus) where.delivery_status = query.deliveryStatus;
     if (query?.deliveredBy) where.delivered_by = Number(query.deliveredBy);
+    if (query?.employeeId) {
+      where.OR = [
+        { delivered_by: Number(query.employeeId) },
+        { sales: { employee_id: Number(query.employeeId) } },
+      ];
+    }
+    if (query?.branchId) {
+      where.sales = {
+        is: {
+          branch_id: Number(query.branchId),
+        },
+      };
+    }
 
     return this.prisma.deliveries.findMany({
       where,
@@ -31,6 +44,7 @@ export class DeliveriesService {
           include: {
             customers: true,
             vehicles: true,
+            branches: true,
           },
         },
         employees: true,
@@ -71,15 +85,23 @@ export class DeliveriesService {
       ...data,
       sale_id: saleId,
       delivered_by: data.delivered_by ?? data.deliveredBy ?? null,
-      customer_received: data.customer_received ?? data.customerReceived ?? true,
+      customer_received: data.customer_received ?? data.customerReceived ?? false,
       delivery_status: this.normalizeDeliveryStatus(data.delivery_status ?? data.deliveryStatus),
       delivery_date: data.delivery_date || data.deliveryDate ? new Date(data.delivery_date || data.deliveryDate) : new Date(),
+      odometer_reading: data.odometer_reading ?? data.odometerReading ? Number(data.odometer_reading ?? data.odometerReading) : null,
+      delivery_notes: data.delivery_notes ?? data.deliveryNotes ?? null,
     };
 
     return this.prisma.deliveries.create({
       data: normalizedData,
       include: {
-        sales: true,
+        sales: {
+          include: {
+            customers: true,
+            vehicles: true,
+            branches: true,
+          },
+        },
         employees: true,
       },
     });
@@ -87,20 +109,28 @@ export class DeliveriesService {
 
   async update(id: number, data: Prisma.deliveriesUpdateInput | any) {
     await this.findOne(id);
-    const normalizedData = {
+    const normalizedData: any = {
       ...data,
       ...(data.sale_id ?? data.saleId ? { sale_id: Number(data.sale_id ?? data.saleId) } : {}),
       ...(data.delivered_by ?? data.deliveredBy ? { delivered_by: Number(data.delivered_by ?? data.deliveredBy) } : {}),
       ...(data.delivery_status || data.deliveryStatus ? { delivery_status: this.normalizeDeliveryStatus(data.delivery_status ?? data.deliveryStatus) } : {}),
       ...(data.delivery_date || data.deliveryDate ? { delivery_date: new Date(data.delivery_date || data.deliveryDate) } : {}),
-      ...(data.customer_received !== undefined || data.customerReceived !== undefined ? { customer_received: Boolean(data.customer_received ?? data.customerReceived ?? true) } : {}),
+      ...(data.customer_received !== undefined || data.customerReceived !== undefined ? { customer_received: Boolean(data.customer_received ?? data.customerReceived) } : {}),
+      ...(data.odometer_reading !== undefined || data.odometerReading !== undefined ? { odometer_reading: Number(data.odometer_reading ?? data.odometerReading) } : {}),
+      ...(data.delivery_notes !== undefined || data.deliveryNotes !== undefined ? { delivery_notes: String(data.delivery_notes ?? data.deliveryNotes) } : {}),
     };
 
     return this.prisma.deliveries.update({
       where: { delivery_id: id },
       data: normalizedData,
       include: {
-        sales: true,
+        sales: {
+          include: {
+            customers: true,
+            vehicles: true,
+            branches: true,
+          },
+        },
         employees: true,
       },
     });

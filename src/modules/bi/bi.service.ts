@@ -81,12 +81,14 @@ export class BiService {
       ...this.buildDateFilter('sale_date', query),
     };
 
-    const salesWithVehicles = await this.prisma.sales.findMany({
+    const salesWithVehicles = (await this.prisma.sales.findMany({
       where: salesWhere,
       select: {
         sale_id: true,
         final_amount: true,
         selling_price: true,
+        deposit_amount: true,
+        loan_amount: true,
         sale_date: true,
         vehicles: {
           select: {
@@ -96,18 +98,31 @@ export class BiService {
           },
         },
       },
-    });
+    })) || [];
 
-    let totalRevenue = 0;
+    let totalContractValue = 0;
+    let fullPaymentRevenue = 0;
+    let downPaymentRevenue = 0;
+    let totalLoanAmount = 0;
     let totalCost = 0;
     let totalDaysToSell = 0;
     let daysToSellCount = 0;
 
-    for (const s of salesWithVehicles) {
-      const rev = this.toNumber(s.final_amount ?? s.selling_price ?? 0);
+    for (const s of salesWithVehicles || []) {
+      const finalAmt = this.toNumber(s.final_amount ?? s.selling_price ?? 0);
+      const deposit = this.toNumber(s.deposit_amount ?? 0);
+      const loan = this.toNumber(s.loan_amount ?? 0);
       const cost = this.toNumber(s.vehicles?.purchase_price ?? 0);
-      totalRevenue += rev;
       totalCost += cost;
+
+      if (loan > 0) {
+        downPaymentRevenue += deposit;
+        totalLoanAmount += loan;
+        totalContractValue += deposit + loan;
+      } else {
+        fullPaymentRevenue += finalAmt;
+        totalContractValue += finalAmt;
+      }
 
       const pDate = s.vehicles?.purchase_date || s.vehicles?.created_at;
       if (pDate && s.sale_date) {
@@ -117,13 +132,14 @@ export class BiService {
       }
     }
 
+    const totalRevenue = fullPaymentRevenue + downPaymentRevenue; // Actual liquid cash collected
     const totalSales = salesWithVehicles.length;
-    const grossProfit = totalRevenue - totalCost;
+    const grossProfit = totalContractValue - totalCost; // Financial accounting margin based on contract price
     const avgDaysToSell = daysToSellCount > 0 ? Math.round(totalDaysToSell / daysToSellCount) : null;
-    const averageSellingPrice = totalSales > 0 ? totalRevenue / totalSales : 0;
+    const averageSellingPrice = totalSales > 0 ? totalContractValue / totalSales : 0;
 
     // Available Inventory Value for the branch / dealership
-    const availableVehicles = await this.prisma.vehicles.findMany({
+    const availableVehicles = (await this.prisma.vehicles.findMany({
       where: {
         status: 'Available',
         ...this.buildBranchFilter(query.branchId),
@@ -132,7 +148,7 @@ export class BiService {
       select: {
         price: true,
       },
-    });
+    })) || [];
 
     const inventoryValue = availableVehicles.reduce((sum, v) => sum + this.toNumber(v.price || 0), 0);
     const currentInventory = availableVehicles.length;
@@ -149,27 +165,32 @@ export class BiService {
       where: this.buildBranchFilter(query.branchId),
     });
 
-    // Branch Leads & Conversion
     const branchIdNum = Number(query.branchId);
-    const leadsCount = await this.prisma.leads.count({
-      where: {
-        ...this.buildDateFilter('inquiry_date', query),
-        ...(branchIdNum > 0
-          ? {
-              OR: [
-                { employees: { branch_id: branchIdNum } },
-                { vehicles: { branch_id: branchIdNum } },
-              ],
-            }
-          : {}),
-      },
-    });
+    const leadsCount = this.prisma.leads
+      ? await this.prisma.leads.count({
+          where: {
+            ...this.buildDateFilter('inquiry_date', query),
+            ...(branchIdNum > 0
+              ? {
+                  OR: [
+                    { employees: { branch_id: branchIdNum } },
+                    { vehicles: { branch_id: branchIdNum } },
+                  ],
+                }
+              : {}),
+          },
+        })
+      : 0;
 
     const leadConversion = leadsCount > 0 ? Number(((totalSales / leadsCount) * 100).toFixed(1)) : 0;
 
     return {
       totalSales,
       totalRevenue,
+      totalContractValue,
+      fullPaymentRevenue,
+      downPaymentRevenue,
+      totalLoanAmount,
       grossProfit,
       inventoryValue,
       avgDaysToSell,
@@ -185,6 +206,93 @@ export class BiService {
         startDate: query.startDate ?? null,
         endDate: query.endDate ?? null,
       },
+    };
+  }
+
+  async getGrossProfitBreakdown(query: Partial<BiQueryDto> = {}) {
+    const salesWhere: any = {
+      NOT: {
+        payment_status: { contains: 'Cancel', mode: 'insensitive' },
+      },
+      ...this.buildBranchFilter(query.branchId),
+      ...this.buildVehicleFilter(query.vehicleId),
+      ...this.buildDateFilter('sale_date', query),
+    };
+
+    const sales = await this.prisma.sales.findMany({
+      where: salesWhere,
+      include: {
+        vehicles: true,
+        customers: true,
+        branches: true,
+      },
+      orderBy: { sale_id: 'desc' },
+    });
+
+    let totalSellingPrice = 0;
+    let totalDiscounts = 0;
+    let totalTaxes = 0;
+    let totalContractValue = 0;
+    let totalAcquisitionCost = 0;
+    let totalDealerBankCommission = 0;
+
+    const deals = sales.map((s) => {
+      const sellingPrice = this.toNumber(s.selling_price || 0);
+      const discount = this.toNumber(s.discount || 0);
+      const tax = this.toNumber(s.tax || 0);
+      const finalAmount = this.toNumber(s.final_amount ?? (sellingPrice - discount + tax));
+      const acquisitionCost = this.toNumber(s.vehicles?.purchase_price || 0);
+      const loanAmount = this.toNumber(s.loan_amount || 0);
+      const bankCommission = loanAmount > 0 ? Number((loanAmount * 0.02).toFixed(2)) : 0;
+
+      const rawSpread = sellingPrice - acquisitionCost;
+      const netGrossProfit = (finalAmount - acquisitionCost) + bankCommission;
+      const marginPct = finalAmount > 0 ? Number(((netGrossProfit / finalAmount) * 100).toFixed(1)) : 0;
+
+      totalSellingPrice += sellingPrice;
+      totalDiscounts += discount;
+      totalTaxes += tax;
+      totalContractValue += finalAmount;
+      totalAcquisitionCost += acquisitionCost;
+      totalDealerBankCommission += bankCommission;
+
+      return {
+        sale_id: s.sale_id,
+        customer_name: s.customers ? `${s.customers.first_name} ${s.customers.last_name || ''}`.trim() : `Customer #${s.customer_id}`,
+        vehicle_name: s.vehicles ? `${s.vehicles.make} ${s.vehicles.model} (${s.vehicles.manufacture_year || ''})` : `Vehicle #${s.vehicle_id}`,
+        registration_number: s.vehicles?.registration_number || 'N/A',
+        branch_name: s.branches?.branch_name || 'Main Branch',
+        selling_price: sellingPrice,
+        discount,
+        tax,
+        final_amount: finalAmount,
+        acquisition_cost: acquisitionCost,
+        raw_spread: rawSpread,
+        loan_amount: loanAmount,
+        bank_commission: bankCommission,
+        net_gross_profit: netGrossProfit,
+        margin_pct: marginPct,
+        payment_status: s.payment_status || 'Pending',
+        sale_date: s.sale_date || s.created_at,
+      };
+    });
+
+    const totalRawDifference = totalSellingPrice - totalAcquisitionCost;
+    const totalGrossProfit = (totalContractValue - totalAcquisitionCost) + totalDealerBankCommission;
+    const overallMarginPct = totalContractValue > 0 ? Number(((totalGrossProfit / totalContractValue) * 100).toFixed(1)) : 0;
+
+    return {
+      totalSalesCount: sales.length,
+      totalSellingPrice,
+      totalAcquisitionCost,
+      totalRawDifference,
+      totalDiscounts,
+      totalTaxes,
+      totalContractValue,
+      totalDealerBankCommission,
+      totalGrossProfit,
+      overallMarginPct,
+      deals,
     };
   }
 
@@ -555,12 +663,13 @@ export class BiService {
         make: row.vehicles?.make,
         model: row.vehicles?.model,
         image_url: row.vehicles?.image_url,
-        registration_number: row.vehicles?.registration_number,
         sales: 0,
         revenue: 0,
+        avg_price: 0,
       };
       item.sales += 1;
       item.revenue += this.toNumber(row.final_amount ?? row.selling_price);
+      item.avg_price = item.sales > 0 ? Math.round(item.revenue / item.sales) : 0;
       grouped.set(name, item);
     }
     return [...grouped.values()].sort((a, b) => b.revenue - a.revenue).slice(0, Math.max(1, Math.min(50, Number(limit) || 5)));

@@ -16,6 +16,14 @@ describe('BiService', () => {
       count: jest.fn(),
       findMany: jest.fn(),
     },
+    leads: {
+      count: jest.fn(),
+      findMany: jest.fn(),
+    },
+    test_drives: {
+      count: jest.fn(),
+      findMany: jest.fn(),
+    },
   };
 
   beforeEach(() => {

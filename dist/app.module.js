@@ -24,8 +24,11 @@ const upload_module_1 = require("./modules/upload/upload.module");
 const reviews_module_1 = require("./modules/reviews/reviews.module");
 const bi_module_1 = require("./modules/bi/bi.module");
 const analytics_module_1 = require("./modules/analytics/analytics.module");
+const roles_module_1 = require("./modules/roles/roles.module");
 const events_module_1 = require("./common/gateways/events.module");
 const cache_module_1 = require("./common/services/cache.module");
+const app_controller_1 = require("./app.controller");
+const app_service_1 = require("./app.service");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -53,7 +56,10 @@ exports.AppModule = AppModule = __decorate([
             reviews_module_1.ReviewsModule,
             bi_module_1.BiModule,
             analytics_module_1.AnalyticsModule,
+            roles_module_1.RolesModule,
         ],
+        controllers: [app_controller_1.AppController],
+        providers: [app_service_1.AppService],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map
